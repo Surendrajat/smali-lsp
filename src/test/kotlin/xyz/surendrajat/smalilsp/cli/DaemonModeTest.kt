@@ -91,7 +91,8 @@ class DaemonModeTest {
             .end method
         """.trimIndent())
         
-        smaliFileUri = "file://${smaliFile.absolutePath}"
+        // Use File.toURI() for proper URI format, then convert to string
+        smaliFileUri = smaliFile.toURI().toString()
     }
     
     /**
@@ -333,6 +334,13 @@ class DaemonModeTest {
             // Wait for ready
             thread { stderr.forEachLine { } }
             Thread.sleep(2000)
+            
+            // Index first (required before any query)
+            sendCommand(
+                stdin, stdout,
+                "index",
+                mapOf("directory" to testProjectDir.absolutePath)
+            )
             
             // Try command with missing args
             val response = sendCommand(

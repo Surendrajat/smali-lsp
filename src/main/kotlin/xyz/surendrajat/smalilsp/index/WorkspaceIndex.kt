@@ -190,33 +190,43 @@ class WorkspaceIndex {
      * Optimized with O(1) reverse lookup map.
      */
     fun findFileByUri(uri: String): SmaliFile? {
-        // Fast path: O(1) lookup using reverse map
-        val className = uriToClass[uri]
-        if (className != null) {
-            return files[className]
-        }
+        // Try all URI format variants for robust matching
+        val variants = getNormalizedUriVariants(uri)
         
-        // Fallback: Try normalizing the URI and search again
-        // Sometimes URIs might have slight differences (file:// vs file:/)
-        val normalizedUri = normalizeUri(uri)
-        val classNameNormalized = uriToClass[normalizedUri]
-        if (classNameNormalized != null) {
-            return files[classNameNormalized]
+        for (uriVariant in variants) {
+            val className = uriToClass[uriVariant]
+            if (className != null) {
+                return files[className]
+            }
         }
         
         // Last resort: Linear search (should rarely happen)
-        return files.values.find { it.uri == uri || it.uri == normalizedUri }
+        return files.values.find { file -> 
+            variants.any { variant -> file.uri == variant }
+        }
     }
     
     /**
      * Normalize URI to handle variations in format.
+     * Returns all possible variations of the URI to try during lookup.
      */
-    private fun normalizeUri(uri: String): String {
-        // Ensure consistent file:// prefix (3 slashes)
-        return when {
-            uri.startsWith("file:/") && !uri.startsWith("file://") -> uri.replaceFirst("file:/", "file:///")
-            else -> uri
+    private fun getNormalizedUriVariants(uri: String): List<String> {
+        val variants = mutableListOf(uri)
+        
+        // file:/// (triple slash) -> file:/ (single slash from Java's toURI())
+        if (uri.startsWith("file:///")) {
+            variants.add(uri.replaceFirst("file:///", "file:/"))
         }
+        // file:/ (single slash) -> file:/// (triple slash for LSP standard)
+        else if (uri.startsWith("file:/") && !uri.startsWith("file://")) {
+            variants.add(uri.replaceFirst("file:/", "file:///"))
+        }
+        // file:// (double slash, Windows style) -> file:/// (triple slash)
+        else if (uri.startsWith("file://") && !uri.startsWith("file:///")) {
+            variants.add(uri.replaceFirst("file://", "file:///"))
+        }
+        
+        return variants
     }
     
     /**
@@ -241,13 +251,17 @@ class WorkspaceIndex {
      * Optimized: O(1) lookup using uriToClass reverse map.
      */
     fun findClassNameByUri(uri: String): String? {
-        // Fast path: Direct O(1) lookup
-        val className = uriToClass[uri]
-        if (className != null) return className
+        // Try all URI format variants for robust matching
+        val variants = getNormalizedUriVariants(uri)
         
-        // Fallback: Try with normalized URI
-        val normalizedUri = normalizeUri(uri)
-        return uriToClass[normalizedUri]
+        for (uriVariant in variants) {
+            val className = uriToClass[uriVariant]
+            if (className != null) {
+                return className
+            }
+        }
+        
+        return null
     }
     
     /**
