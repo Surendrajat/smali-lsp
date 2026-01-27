@@ -223,6 +223,9 @@ class CompleteIndexNavigationValidationTest {
                         if (success) stats.typeSuccess++
                         else analyzeFailure(sample.instruction.className, stats)
                     }
+                    is JumpInstruction -> {
+                        // JumpInstructions reference labels, not classes - skip
+                    }
                 }
                 
                 if (success) stats.totalSuccess++

@@ -196,12 +196,17 @@ class InstructionNavigationStressTest {
                         typeTests++
                         "type-${instruction.opcode}"
                     }
+                    is JumpInstruction -> {
+                        // JumpInstructions reference labels, not classes - skip
+                        "jump-${instruction.opcode}"
+                    }
                 }
                 
                 val targetClass = when (instruction) {
                     is InvokeInstruction -> instruction.className
                     is FieldAccessInstruction -> instruction.className
                     is TypeInstruction -> instruction.className
+                    is JumpInstruction -> "" // JumpInstructions reference labels, not classes
                 }
                 
                 results.add(NavigationResult(

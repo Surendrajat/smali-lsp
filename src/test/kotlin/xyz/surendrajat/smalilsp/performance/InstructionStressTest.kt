@@ -225,6 +225,9 @@ class InstructionStressTest {
                                             else -> stats.otherInstructions++
                                         }
                                     }
+                                    is JumpInstruction -> {
+                                        // JumpInstructions reference labels, not classes - skip
+                                    }
                                 }
                             }
                         }
