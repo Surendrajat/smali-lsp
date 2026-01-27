@@ -10,6 +10,7 @@ import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import xyz.surendrajat.smalilsp.providers.HoverProvider
 import xyz.surendrajat.smalilsp.providers.ReferenceProvider
 import xyz.surendrajat.smalilsp.providers.DiagnosticProvider
+import xyz.surendrajat.smalilsp.providers.WorkspaceSymbolProvider
 import org.slf4j.LoggerFactory
 import java.io.File
 import kotlinx.coroutines.runBlocking
@@ -53,6 +54,7 @@ class DaemonMode {
     private var hoverProvider: HoverProvider? = null
     private var referenceProvider: ReferenceProvider? = null
     private var diagnosticProvider: DiagnosticProvider? = null
+    private var workspaceSymbolProvider: WorkspaceSymbolProvider? = null
     
     data class Request(
         val command: String,
@@ -141,6 +143,7 @@ class DaemonMode {
         hoverProvider = HoverProvider(index!!)
         referenceProvider = ReferenceProvider(index!!)
         diagnosticProvider = DiagnosticProvider(parser, index!!)
+        workspaceSymbolProvider = WorkspaceSymbolProvider(index!!)
         
         indexedDirectory = dir.absolutePath
         val duration = System.currentTimeMillis() - startTime
@@ -201,7 +204,7 @@ class DaemonMode {
     }
     
     private fun handleSearchSymbols(args: Map<String, String>): Map<String, Any?> {
-        if (index == null) {
+        if (workspaceSymbolProvider == null) {
             return mapOf(
                 "success" to false,
                 "error" to "No index loaded. Run 'index' command first."
@@ -213,49 +216,67 @@ class DaemonMode {
             "error" to "Missing 'pattern' argument"
         )
         
-        val results = mutableListOf<Map<String, Any?>>()
+        // Optional type filter: "class", "method", "field", or null for all
+        val typeFilter = args["type"]?.lowercase()
         
-        // Search classes
-        index!!.getAllClassNames().filter { it.contains(pattern, ignoreCase = true) }.forEach { className ->
-            val classFile = index!!.findClass(className)
-            if (classFile != null) {
-                results.add(mapOf(
-                    "type" to "class",
-                    "name" to className,
-                    "uri" to classFile.uri
-                ))
+        // Use WorkspaceSymbolProvider for consistent search behavior with LSP
+        val symbols = workspaceSymbolProvider!!.search(pattern)
+        
+        // Filter by type if specified
+        val filteredSymbols = if (typeFilter != null) {
+            symbols.filter { symbol ->
+                when (typeFilter) {
+                    "class" -> symbol.kind == org.eclipse.lsp4j.SymbolKind.Class
+                    "method" -> symbol.kind == org.eclipse.lsp4j.SymbolKind.Method
+                    "field" -> symbol.kind == org.eclipse.lsp4j.SymbolKind.Field
+                    else -> true
+                }
             }
+        } else {
+            symbols
         }
         
-        // Search methods and fields
-        index!!.getAllFiles().forEach { file ->
-            file.methods.filter { it.name.contains(pattern, ignoreCase = true) }.forEach { method ->
-                results.add(mapOf(
-                    "type" to "method",
-                    "name" to method.name,
-                    "className" to file.classDefinition.name,
-                    "descriptor" to method.descriptor,
-                    "uri" to file.uri
-                ))
+        // Convert to JSON-friendly format
+        // Extract simple name for backward compatibility with daemon API
+        val results = filteredSymbols.map { symbol ->
+            // Extract simple name: "Lcom/example/Class;.method" -> "method", "Lcom/example/Class;" -> "Class"
+            val simpleName = when (symbol.kind) {
+                org.eclipse.lsp4j.SymbolKind.Class -> {
+                    // Extract class name from "Lcom/example/Class;"
+                    symbol.name.removePrefix("L").removeSuffix(";").substringAfterLast('/')
+                }
+                else -> {
+                    // Methods and fields: "Lcom/example/Class;.name" -> "name"
+                    symbol.name.substringAfterLast('.')
+                }
             }
-            
-            file.fields.filter { it.name.contains(pattern, ignoreCase = true) }.forEach { field ->
-                results.add(mapOf(
-                    "type" to "field",
-                    "name" to field.name,
-                    "className" to file.classDefinition.name,
-                    "fieldType" to field.type,
-                    "uri" to file.uri
-                ))
-            }
+            mapOf(
+                "type" to when (symbol.kind) {
+                    org.eclipse.lsp4j.SymbolKind.Class -> "class"
+                    org.eclipse.lsp4j.SymbolKind.Method -> "method"
+                    org.eclipse.lsp4j.SymbolKind.Field -> "field"
+                    else -> "unknown"
+                },
+                "name" to simpleName,
+                "fullName" to symbol.name,
+                "containerName" to symbol.containerName,
+                "uri" to symbol.location.uri,
+                "range" to mapOf(
+                    "startLine" to symbol.location.range.start.line,
+                    "startChar" to symbol.location.range.start.character,
+                    "endLine" to symbol.location.range.end.line,
+                    "endChar" to symbol.location.range.end.character
+                )
+            )
         }
         
         return mapOf(
             "success" to true,
             "pattern" to pattern,
-            "results" to results.take(100),
+            "typeFilter" to typeFilter,
+            "results" to results,
             "count" to results.size,
-            "truncated" to (results.size > 100)
+            "truncated" to (symbols.size > filteredSymbols.size)
         )
     }
     
