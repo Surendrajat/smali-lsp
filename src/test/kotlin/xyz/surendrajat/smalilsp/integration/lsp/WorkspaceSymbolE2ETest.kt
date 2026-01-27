@@ -184,8 +184,8 @@ class WorkspaceSymbolE2ETest {
             // Should complete in < 500ms
             assertTrue(elapsed < 500, "Search should be < 500ms, was ${elapsed}ms")
             
-            // Should limit to 100 results
-            assertTrue(results.size <= 100, "Should limit to 100 results")
+            // Should limit to 500 results
+            assertTrue(results.size <= 500, "Should limit to 500 results")
         }
         
     }
@@ -207,7 +207,7 @@ class WorkspaceSymbolE2ETest {
         
         // Should return symbols (empty query matches everything, up to limit)
         assertTrue(results.isNotEmpty(), "Empty query should return symbols")
-        assertTrue(results.size <= 100, "Should respect result limit")
+        assertTrue(results.size <= 500, "Should respect result limit")
         
     }
     

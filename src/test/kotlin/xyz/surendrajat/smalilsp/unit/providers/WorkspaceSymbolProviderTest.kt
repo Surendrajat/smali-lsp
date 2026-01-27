@@ -43,13 +43,15 @@ class WorkspaceSymbolProviderTest {
     
     /**
      * Test exact class name match.
+     * NOTE: Search now matches on SIMPLE class name (e.g., "MainActivity"), not full path.
      */
     @Test
     fun `exact class name match`() {
         val index = createTestIndex()
         val provider = WorkspaceSymbolProvider(index)
         
-        val results = provider.search("Lcom/example/MainActivity;")
+        // Search by simple name (without Lcom/example/ prefix)
+        val results = provider.search("MainActivity")
         
         // Should find exact match first
         assertTrue(results.isNotEmpty())
@@ -73,16 +75,18 @@ class WorkspaceSymbolProviderTest {
     
     /**
      * Test prefix matching.
+     * NOTE: Search now matches on SIMPLE class name, so prefix matches work on simple name.
      */
     @Test
     fun `prefix matching works`() {
         val index = createTestIndex()
         val provider = WorkspaceSymbolProvider(index)
         
-        val results = provider.search("Lcom/example/Main")
+        // Search by simple name prefix (not full path prefix)
+        val results = provider.search("Main")
         
-        // Should find classes starting with Lcom/example/Main
-        assertTrue(results.any { it.name.startsWith("Lcom/example/Main") })
+        // Should find classes with simple name starting with "Main"
+        assertTrue(results.any { it.name.contains("MainActivity") })
     }
     
     /**
@@ -183,14 +187,15 @@ class WorkspaceSymbolProviderTest {
     }
     
     /**
-     * Test result limit (max 100 results).
+     * Test result limit (max 500 results).
+     * NOTE: Increased from 100 to 500 for better coverage of large codebases.
      */
     @Test
-    fun `results are limited to 100`() {
+    fun `results are limited to 500`() {
         val index = WorkspaceIndex()
         
-        // Create 150 classes all matching the query
-        repeat(150) { i ->
+        // Create 600 classes all matching the query
+        repeat(600) { i ->
             val file = createClassFile("Lcom/example/Class$i;", "file:///class$i.smali")
             index.indexFile(file)
         }
@@ -198,8 +203,8 @@ class WorkspaceSymbolProviderTest {
         val provider = WorkspaceSymbolProvider(index)
         val results = provider.search("Class")
         
-        // Should limit to 100 results
-        assertEquals(100, results.size)
+        // Should limit to 500 results
+        assertEquals(500, results.size)
     }
     
     /**
@@ -267,7 +272,7 @@ class WorkspaceSymbolProviderTest {
         
         // Should find results quickly
         assertTrue(results.isNotEmpty())
-        assertEquals(100, results.size) // Limited to 100
+        assertEquals(500, results.size) // Limited to 500
         assertTrue(elapsed < 500, "Should complete in < 500ms, was ${elapsed}ms")
     }
     

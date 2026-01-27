@@ -29,7 +29,8 @@ class WorkspaceSymbolProvider(
     private val index: WorkspaceIndex
 ) {
     companion object {
-        private const val MAX_RESULTS = 100
+        // Increased from 100 to allow more results while still being performant
+        private const val MAX_RESULTS = 500
     }
     
     /**
@@ -48,22 +49,24 @@ class WorkspaceSymbolProvider(
         val matches = mutableListOf<Pair<SymbolInformation, Int>>()
         
         allFiles.forEach { file ->
-            // Add class symbol
-            val classMatch = matchSymbol(file.classDefinition.name, normalizedQuery)
+            // Add class symbol - match on simple class name, not full path
+            val simpleName = extractSimpleName(file.classDefinition.name)
+            val classMatch = matchSymbol(simpleName, normalizedQuery)
             if (classMatch != null) {
                 matches.add(
                     createClassSymbol(file) to classMatch
                 )
             }
             
-            // Add method symbols
+            // Add method symbols - match ONLY on method name, not class+method
             file.methods.forEach { method ->
-                val methodName = "${file.classDefinition.name}.${method.name}"
-                val methodMatch = matchSymbol(methodName, normalizedQuery)
+                val methodMatch = matchSymbol(method.name, normalizedQuery)
                 if (methodMatch != null) {
+                    // Display name includes class for context
+                    val displayName = "${file.classDefinition.name}.${method.name}"
                     matches.add(
                         SymbolInformation(
-                            methodName,
+                            displayName,
                             SymbolKind.Method,
                             Location(file.uri, method.range),
                             file.classDefinition.name
@@ -72,14 +75,15 @@ class WorkspaceSymbolProvider(
                 }
             }
             
-            // Add field symbols
+            // Add field symbols - match ONLY on field name, not class+field
             file.fields.forEach { field ->
-                val fieldName = "${file.classDefinition.name}.${field.name}"
-                val fieldMatch = matchSymbol(fieldName, normalizedQuery)
+                val fieldMatch = matchSymbol(field.name, normalizedQuery)
                 if (fieldMatch != null) {
+                    // Display name includes class for context
+                    val displayName = "${file.classDefinition.name}.${field.name}"
                     matches.add(
                         SymbolInformation(
-                            fieldName,
+                            displayName,
                             SymbolKind.Field,
                             Location(file.uri, field.range),
                             file.classDefinition.name
@@ -101,28 +105,36 @@ class WorkspaceSymbolProvider(
      * Match a symbol name against a query.
      * 
      * Returns match score (higher is better):
-     * - 100: Exact match
-     * - 50: Prefix match
-     * - 25: Contains match
-     * - 10: Fuzzy match (query letters in order)
+     * - 1000: Exact match (case-insensitive)
+     * - 500 + length bonus: Prefix match (shorter symbols score higher)
+     * - 100 + length bonus: Contains match (shorter symbols score higher)
+     * - 10: Fuzzy match (only for queries >= 3 chars)
      * - null: No match
+     * 
+     * The length bonus ensures shorter symbol names rank higher:
+     * - Searching "q" returns class "q" before "queryString"
      */
     private fun matchSymbol(symbolName: String, query: String): Int? {
         if (query.isEmpty()) return 10 // Everything matches empty query
         
         val normalizedSymbol = symbolName.lowercase()
         
-        // Exact match
-        if (normalizedSymbol == query) return 100
+        // Calculate length bonus: shorter names get higher scores
+        // Max bonus of 100, decreases with length
+        val lengthBonus = maxOf(0, 100 - normalizedSymbol.length * 5)
         
-        // Prefix match (best for most IDE searches)
-        if (normalizedSymbol.startsWith(query)) return 50
+        // Exact match - highest priority
+        if (normalizedSymbol == query) return 1000 + lengthBonus
         
-        // Contains match
-        if (normalizedSymbol.contains(query)) return 25
+        // Prefix match - second priority
+        if (normalizedSymbol.startsWith(query)) return 500 + lengthBonus
         
-        // Fuzzy match: all query letters in order
-        if (fuzzyMatch(normalizedSymbol, query)) return 10
+        // Contains match - third priority
+        if (normalizedSymbol.contains(query)) return 100 + lengthBonus
+        
+        // Fuzzy match: only for longer queries to avoid noise
+        // Single-letter queries like "q" should NOT fuzzy match "request"
+        if (query.length >= 3 && fuzzyMatch(normalizedSymbol, query)) return 10
         
         return null
     }
@@ -158,5 +170,24 @@ class WorkspaceSymbolProvider(
             SymbolKind.Class,
             Location(file.uri, file.classDefinition.range)
         )
+    }
+    
+    /**
+     * Extract simple class name from full Smali type.
+     * 
+     * Examples:
+     * - "Lcom/example/MyClass;" -> "MyClass"
+     * - "Lcom/example/Outer$Inner;" -> "Inner"
+     * - "La/b/c/q;" -> "q"
+     */
+    private fun extractSimpleName(fullName: String): String {
+        // Remove leading 'L' and trailing ';'
+        val cleaned = fullName.removePrefix("L").removeSuffix(";")
+        
+        // Get the last part after '/' (package separator)
+        val afterSlash = cleaned.substringAfterLast('/')
+        
+        // Get the last part after '$' (inner class separator) if present
+        return afterSlash.substringAfterLast('$')
     }
 }
