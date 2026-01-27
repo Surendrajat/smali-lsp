@@ -82,6 +82,8 @@ CATCH_DIRECTIVE:                '.catch';
 CATCHALL_DIRECTIVE:             '.catchall';
 ANNOTATION_DIRECTIVE:           '.annotation';
 ANNOTATION_END_DIRECTIVE:       '.end annotation';
+PROLOGUE_DIRECTIVE:             '.prologue';
+EPILOGUE_DIRECTIVE:             '.epilogue';
 LOCAL_DIRECTIVE:                '.local';
 LOCAL_END_DIRECTIVE:            '.end local';
 RESTART_LOCAL_DIRECTIVE:        '.restart local';

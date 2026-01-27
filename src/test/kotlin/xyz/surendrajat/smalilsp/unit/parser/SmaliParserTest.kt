@@ -183,4 +183,36 @@ class SmaliParserTest {
         assertEquals(0, result.methods.size)
         assertEquals(0, result.fields.size)
     }
+    
+    /**
+     * Test parsing .prologue and .epilogue directives.
+     * These are used by some Smali assemblers to mark method prologue/epilogue code.
+     */
+    @Test
+    fun `parse method with prologue and epilogue directives`() {
+        val smali = """
+            .class public Lcom/example/PrologueTest;
+            .super Ljava/lang/Object;
+            
+            .method public test()V
+                .prologue
+                .line 1
+                
+                const/4 v0, 0x0
+                
+                .epilogue
+                return-void
+            .end method
+        """.trimIndent()
+        
+        val result = parser.parse("file:///PrologueTest.smali", smali)
+        
+        assertNotNull(result, "Parser should handle .prologue and .epilogue directives")
+        result!!
+        
+        assertEquals("Lcom/example/PrologueTest;", result.classDefinition.name)
+        assertEquals(1, result.methods.size)
+        assertEquals("test", result.methods[0].name)
+        assertEquals("()V", result.methods[0].descriptor)
+    }
 }

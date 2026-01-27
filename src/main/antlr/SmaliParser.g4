@@ -1050,6 +1050,10 @@ localEndDirective:          LOCAL_END_DIRECTIVE registerIdentifier;
 
 localRestartDirective:      RESTART_LOCAL_DIRECTIVE registerIdentifier;
 
+prologueDirective:          PROLOGUE_DIRECTIVE;
+
+epilogueDirective:          EPILOGUE_DIRECTIVE;
+
 lineLabel:                  label;
 
 methodBodyStatement:
@@ -1057,6 +1061,8 @@ methodBodyStatement:
     | localsDirective
     | paramDirective
     | lineDirective
+    | prologueDirective
+    | epilogueDirective
     | instruction
     | lineLabel
     | catchDirective
