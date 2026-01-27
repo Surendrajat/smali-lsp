@@ -35,6 +35,7 @@ class ASTBuilder(
     // Track current method for instruction parsing
     private var currentMethod: MethodDefinition? = null
     private val currentInstructions = mutableListOf<Instruction>()
+    private val currentLabels = mutableMapOf<String, LabelDefinition>()
     
     override fun enterClassDirective(ctx: GeneratedSmaliParser.ClassDirectiveContext) {
         // Extract class name (intern for memory efficiency)
@@ -120,18 +121,24 @@ class ASTBuilder(
             modifiers = modifiers,
             parameters = parameters,
             returnType = returnType,
-            instructions = emptyList()  // Will be populated when we exit
+            instructions = emptyList(),  // Will be populated when we exit
+            labels = emptyMap()  // Will be populated when we exit
         )
         currentInstructions.clear()
+        currentLabels.clear()
     }
     
     override fun exitMethodDirective(ctx: GeneratedSmaliParser.MethodDirectiveContext) {
-        // Finalize the method with collected instructions
+        // Finalize the method with collected instructions and labels
         currentMethod?.let { method ->
-            methods.add(method.copy(instructions = currentInstructions.toList()))
+            methods.add(method.copy(
+                instructions = currentInstructions.toList(),
+                labels = currentLabels.toMap()
+            ))
         }
         currentMethod = null
         currentInstructions.clear()
+        currentLabels.clear()
     }
     
     /**
@@ -601,6 +608,114 @@ class ASTBuilder(
             opcode = "new-array",
             className = className,
             range = ctx.toRange()
+        ))
+    }
+    
+    // ========== Label Parsing ==========
+    
+    /**
+     * Parse label definition (e.g., :cond_0)
+     * lineLabel is the rule for labels in method body statements
+     */
+    override fun enterLineLabel(ctx: GeneratedSmaliParser.LineLabelContext) {
+        if (currentMethod == null) return
+        
+        val labelCtx = ctx.label() ?: return
+        val labelName = labelCtx.labelName()?.text ?: return
+        
+        currentLabels[labelName] = LabelDefinition(
+            name = labelName,
+            range = ctx.toRange()
+        )
+    }
+    
+    /**
+     * Parse goto instruction
+     */
+    override fun enterGotoInstruction(ctx: GeneratedSmaliParser.GotoInstructionContext) {
+        parseJumpInstruction("goto", ctx.label(), ctx.toRange())
+    }
+    
+    override fun enterGoto16Instruction(ctx: GeneratedSmaliParser.Goto16InstructionContext) {
+        parseJumpInstruction("goto/16", ctx.label(), ctx.toRange())
+    }
+    
+    override fun enterGoto32Instruction(ctx: GeneratedSmaliParser.Goto32InstructionContext) {
+        parseJumpInstruction("goto/32", ctx.label(), ctx.toRange())
+    }
+    
+    /**
+     * Parse if-*z instructions (single register tests)
+     */
+    override fun enterIfEqzInstruction(ctx: GeneratedSmaliParser.IfEqzInstructionContext) {
+        parseJumpInstruction("if-eqz", ctx.ifLabel()?.label(), ctx.toRange())
+    }
+    
+    override fun enterIfNezInstruction(ctx: GeneratedSmaliParser.IfNezInstructionContext) {
+        parseJumpInstruction("if-nez", ctx.ifLabel()?.label(), ctx.toRange())
+    }
+    
+    override fun enterIfLtzInstruction(ctx: GeneratedSmaliParser.IfLtzInstructionContext) {
+        parseJumpInstruction("if-ltz", ctx.ifLabel()?.label(), ctx.toRange())
+    }
+    
+    override fun enterIfGezInstruction(ctx: GeneratedSmaliParser.IfGezInstructionContext) {
+        parseJumpInstruction("if-gez", ctx.ifLabel()?.label(), ctx.toRange())
+    }
+    
+    override fun enterIfGtzInstruction(ctx: GeneratedSmaliParser.IfGtzInstructionContext) {
+        parseJumpInstruction("if-gtz", ctx.ifLabel()?.label(), ctx.toRange())
+    }
+    
+    override fun enterIfLezInstruction(ctx: GeneratedSmaliParser.IfLezInstructionContext) {
+        parseJumpInstruction("if-lez", ctx.ifLabel()?.label(), ctx.toRange())
+    }
+    
+    /**
+     * Parse if-* instructions (two register comparisons)
+     */
+    override fun enterIfEqInstruction(ctx: GeneratedSmaliParser.IfEqInstructionContext) {
+        parseJumpInstruction("if-eq", ctx.ifLabel()?.label(), ctx.toRange())
+    }
+    
+    override fun enterIfNeInstruction(ctx: GeneratedSmaliParser.IfNeInstructionContext) {
+        parseJumpInstruction("if-ne", ctx.ifLabel()?.label(), ctx.toRange())
+    }
+    
+    override fun enterIfLtInstruction(ctx: GeneratedSmaliParser.IfLtInstructionContext) {
+        parseJumpInstruction("if-lt", ctx.ifLabel()?.label(), ctx.toRange())
+    }
+    
+    override fun enterIfGeInstruction(ctx: GeneratedSmaliParser.IfGeInstructionContext) {
+        parseJumpInstruction("if-ge", ctx.ifLabel()?.label(), ctx.toRange())
+    }
+    
+    override fun enterIfGtInstruction(ctx: GeneratedSmaliParser.IfGtInstructionContext) {
+        parseJumpInstruction("if-gt", ctx.ifLabel()?.label(), ctx.toRange())
+    }
+    
+    override fun enterIfLeInstruction(ctx: GeneratedSmaliParser.IfLeInstructionContext) {
+        parseJumpInstruction("if-le", ctx.ifLabel()?.label(), ctx.toRange())
+    }
+    
+    /**
+     * Common helper to parse jump instructions
+     */
+    private fun parseJumpInstruction(
+        opcode: String,
+        labelCtx: GeneratedSmaliParser.LabelContext?,
+        fullRange: Range
+    ) {
+        if (currentMethod == null || labelCtx == null) return
+        
+        val labelName = labelCtx.labelName()?.text ?: return
+        val labelRange = labelCtx.toRange()
+        
+        currentInstructions.add(JumpInstruction(
+            opcode = opcode,
+            targetLabel = labelName,
+            range = fullRange,
+            labelRange = labelRange
         ))
     }
 }

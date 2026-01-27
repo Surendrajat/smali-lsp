@@ -3,6 +3,7 @@ package xyz.surendrajat.smalilsp.providers
 import org.eclipse.lsp4j.*
 import xyz.surendrajat.smalilsp.core.*
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
+import xyz.surendrajat.smalilsp.util.ClassUtils
 import xyz.surendrajat.smalilsp.util.InstructionSymbolExtractor
 import java.io.File
 import java.net.URI
@@ -103,6 +104,12 @@ class ReferenceProvider(
                 handleInstructionReferences(node.second as Instruction, uri, position, includeDeclaration)
             }
             
+            node.first == NodeType.LABEL -> {
+                // User clicked on a label definition (e.g., :cond_0)
+                val labelDef = node.second as LabelDefinition
+                findLabelReferences(labelDef.name, uri, position, includeDeclaration)
+            }
+            
             else -> emptyList()
         }
     }
@@ -195,6 +202,9 @@ class ReferenceProvider(
                                 locations.add(Location(file.uri, instruction.range))
                             }
                         }
+                        is JumpInstruction -> {
+                            // JumpInstructions don't reference classes - skip
+                        }
                     }
                 }
             }
@@ -252,7 +262,7 @@ class ReferenceProvider(
         
         // For SDK classes, only find DIRECT calls (not polymorphic subclass calls)
         // This prevents too many results (e.g., Object.<init> would match everything)
-        val isSdkTarget = isSdkClass(targetClassName)
+        val isSdkTarget = ClassUtils.isSDKClass(targetClassName)
         
         // Build list of classes that could reference this method
         val validClassNames = mutableSetOf(targetClassName)
@@ -310,28 +320,6 @@ class ReferenceProvider(
         }
         
         return false
-    }
-    
-    /**
-     * Check if a class is an SDK class (not a workspace class).
-     * SDK classes include Java standard library, Android framework, and support libraries.
-     * 
-     * For SDK classes, we apply different "Find References" behavior:
-     * - Only find DIRECT calls (not polymorphic subclass calls)
-     * - Prevents too many results (e.g., Object.<init> would match everything)
-     */
-    private fun isSdkClass(className: String): Boolean {
-        return className.startsWith("Ljava/") ||
-               className.startsWith("Ljavax/") ||
-               className.startsWith("Landroid/") ||
-               className.startsWith("Landroidx/") ||
-               className.startsWith("Lkotlin/") ||
-               className.startsWith("Lkotlinx/") ||
-               className.startsWith("Ldalvik/") ||
-               className.startsWith("Lcom/google/android/") ||
-               className.startsWith("Lorg/w3c/") ||
-               className.startsWith("Lorg/xml/") ||
-               className.startsWith("Lorg/json/")
     }
     
     /**
@@ -410,6 +398,11 @@ class ReferenceProvider(
         position: Position,
         includeDeclaration: Boolean
     ): List<Location> {
+        // Handle JumpInstruction (goto, if-*) - find all jumps to this label
+        if (instruction is JumpInstruction) {
+            return findLabelReferences(instruction.targetLabel, uri, position, includeDeclaration)
+        }
+        
         // Read the actual line content to find which symbol cursor is on
         val lineContent = try {
             val file = File(URI(uri))
@@ -745,5 +738,47 @@ class ReferenceProvider(
         }
         
         return refs
+    }
+    
+    /**
+     * Find all references to a label within the same method.
+     * Labels are local to the method they're defined in.
+     * 
+     * @param labelName Label name without colon (e.g., "cond_0")
+     * @param uri URI of the file containing the label
+     * @param position Position of the label (used to find containing method)
+     * @param includeDeclaration Whether to include the label definition itself
+     * @return List of locations where the label is referenced
+     */
+    private fun findLabelReferences(
+        labelName: String,
+        uri: String,
+        position: Position,
+        includeDeclaration: Boolean
+    ): List<Location> {
+        val file = workspaceIndex.findFileByUri(uri) ?: return emptyList()
+        val locations = mutableListOf<Location>()
+        
+        // Find the method containing the position (where the label is referenced/defined)
+        val containingMethod = file.methods.find { method ->
+            position.line >= method.range.start.line && position.line <= method.range.end.line
+        } ?: return emptyList()
+        
+        // Only search within the containing method (labels are method-scoped)
+        val labelDef = containingMethod.labels[labelName]
+            
+        // Include label definition if requested and exists in this method
+        if (includeDeclaration && labelDef != null) {
+            locations.add(Location(uri, labelDef.range))
+        }
+        
+        // Find all JumpInstructions that reference this label within the same method
+        for (instruction in containingMethod.instructions) {
+            if (instruction is JumpInstruction && instruction.targetLabel == labelName) {
+                locations.add(Location(uri, instruction.labelRange))
+            }
+        }
+        
+        return locations
     }
 }

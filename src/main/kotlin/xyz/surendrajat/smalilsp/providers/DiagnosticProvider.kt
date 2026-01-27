@@ -7,6 +7,7 @@ import org.eclipse.lsp4j.Range
 import xyz.surendrajat.smalilsp.core.SmaliFile
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.parser.SmaliParser
+import xyz.surendrajat.smalilsp.util.ClassUtils
 import org.slf4j.LoggerFactory
 
 /**
@@ -80,7 +81,7 @@ class DiagnosticProvider(
         
         // Check superclass exists
         file.classDefinition.superClass?.let { superClass ->
-            if (!index.hasClass(superClass) && !isSystemClass(superClass)) {
+            if (!index.hasClass(superClass) && !ClassUtils.isSDKClass(superClass)) {
                 diagnostics.add(
                     createDiagnostic(
                         range = Range(
@@ -97,7 +98,7 @@ class DiagnosticProvider(
         
         // Check interfaces exist
         file.classDefinition.interfaces.forEach { interfaceName ->
-            if (!index.hasClass(interfaceName) && !isSystemClass(interfaceName)) {
+            if (!index.hasClass(interfaceName) && !ClassUtils.isSDKClass(interfaceName)) {
                 diagnostics.add(
                     createDiagnostic(
                         range = Range(
@@ -117,7 +118,7 @@ class DiagnosticProvider(
             method.instructions?.forEach { instruction ->
                 when (instruction) {
                     is xyz.surendrajat.smalilsp.core.InvokeInstruction -> {
-                        if (!index.hasClass(instruction.className) && !isSystemClass(instruction.className)) {
+                        if (!index.hasClass(instruction.className) && !ClassUtils.isSDKClass(instruction.className)) {
                             diagnostics.add(
                                 createDiagnostic(
                                     range = instruction.range,
@@ -129,7 +130,7 @@ class DiagnosticProvider(
                         }
                     }
                     is xyz.surendrajat.smalilsp.core.FieldAccessInstruction -> {
-                        if (!index.hasClass(instruction.className) && !isSystemClass(instruction.className)) {
+                        if (!index.hasClass(instruction.className) && !ClassUtils.isSDKClass(instruction.className)) {
                             diagnostics.add(
                                 createDiagnostic(
                                     range = instruction.range,
@@ -141,7 +142,7 @@ class DiagnosticProvider(
                         }
                     }
                     is xyz.surendrajat.smalilsp.core.TypeInstruction -> {
-                        if (!index.hasClass(instruction.className) && !isSystemClass(instruction.className)) {
+                        if (!index.hasClass(instruction.className) && !ClassUtils.isSDKClass(instruction.className)) {
                             diagnostics.add(
                                 createDiagnostic(
                                     range = instruction.range,
@@ -152,6 +153,10 @@ class DiagnosticProvider(
                             )
                         }
                     }
+                    is xyz.surendrajat.smalilsp.core.JumpInstruction -> {
+                        // JumpInstructions reference labels within the same method
+                        // Label validation could be added here if needed
+                    }
                 }
             }
         }
@@ -159,7 +164,7 @@ class DiagnosticProvider(
         // Check field references
         file.fields.forEach { field ->
             val typeClass = extractTypeClass(field.type)
-            if (typeClass != null && !index.hasClass(typeClass) && !isSystemClass(typeClass)) {
+            if (typeClass != null && !index.hasClass(typeClass) && !ClassUtils.isSDKClass(typeClass)) {
                 diagnostics.add(
                     createDiagnostic(
                         range = field.range,
@@ -185,24 +190,6 @@ class DiagnosticProvider(
         
         // Only class types start with L
         return if (baseType.startsWith("L")) baseType else null
-    }
-    
-    /**
-     * Check if a class is a system class (java.*, android.*, etc.)
-     * System classes might not be indexed if SDK is not configured.
-     */
-    private fun isSystemClass(className: String): Boolean {
-        // Array types are always valid (e.g., [I, [Ljava/lang/String;, [[I)
-        if (className.startsWith("[")) {
-            return true
-        }
-        
-        return className.startsWith("Ljava/") ||
-               className.startsWith("Ljavax/") ||
-               className.startsWith("Landroid/") ||
-               className.startsWith("Ldalvik/") ||
-               className.startsWith("Lkotlin/") ||
-               className.startsWith("Lkotlinx/")
     }
     
     /**

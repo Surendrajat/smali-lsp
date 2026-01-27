@@ -4,6 +4,7 @@ import org.eclipse.lsp4j.*
 import xyz.surendrajat.smalilsp.core.*
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.resolver.TypeResolver
+import xyz.surendrajat.smalilsp.util.ClassUtils
 import xyz.surendrajat.smalilsp.util.InstructionSymbolExtractor
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -103,6 +104,13 @@ class DefinitionProvider(
                 findTypeInFieldDeclaration(field, position, uri)
             }
             
+            node.first == NodeType.LABEL -> {
+                // On label definition (e.g., :cond_0)
+                // User is already at the definition, return its location
+                val labelDef = node.second as LabelDefinition
+                listOf(Location(uri, labelDef.range))
+            }
+            
             else -> emptyList()
         }
     }
@@ -116,6 +124,11 @@ class DefinitionProvider(
         uri: String,
         position: Position
     ): List<Location> {
+        // Handle JumpInstruction (goto, if-*) - navigate to label definition
+        if (instruction is JumpInstruction) {
+            return findLabelDefinition(instruction.targetLabel, uri)
+        }
+        
         // Read the actual line content to find which symbol cursor is on
         val lineContent = try {
             val file = File(URI(uri))
@@ -164,6 +177,25 @@ class DefinitionProvider(
     }
     
     /**
+     * Find label definition within the same method.
+     * Labels are local to the method they're defined in.
+     */
+    private fun findLabelDefinition(labelName: String, uri: String): List<Location> {
+        val file = workspaceIndex.findFileByUri(uri) ?: return emptyList()
+        
+        // Search all methods for the label definition
+        for (method in file.methods) {
+            val labelDef = method.labels[labelName]
+            if (labelDef != null) {
+                return listOf(Location(uri, labelDef.range))
+            }
+        }
+        
+        logger.debug("Label not found: $labelName in $uri")
+        return emptyList()
+    }
+    
+    /**
      * Fallback navigation when line content can't be read.
      * Navigates to first symbol in instruction (old behavior).
      */
@@ -193,7 +225,11 @@ class DefinitionProvider(
                 findClassDefinition(instruction.className)
             }
             
-            else -> emptyList()
+            is JumpInstruction -> {
+                // JumpInstruction is handled separately in handleInstructionNavigation
+                // This fallback shouldn't be reached for jumps
+                emptyList()
+            }
         }
     }
     
@@ -208,7 +244,7 @@ class DefinitionProvider(
     private fun findClassDefinition(className: String): List<Location> {
         // BUGFIX: SDK classes should not be navigable
         // User requirement: "SDK Class should not be clickable or have any definitions"
-        if (isSystemClass(className)) {
+        if (ClassUtils.isSDKClass(className)) {
             return emptyList()
         }
         
@@ -222,36 +258,6 @@ class DefinitionProvider(
             return listOf(Location(file.uri, file.classDefinition.range))
         }
         return emptyList()
-    }
-    
-    /**
-     * Check if a class is a system/SDK class.
-     * SDK classes include java.*, javax.*, android.*, dalvik.*, kotlin.*, kotlinx.*
-     * These should not be navigable since they're not part of the user's codebase.
-     * 
-     * BUGFIX: Array types need base type check, not startsWith("[") check.
-     * User arrays like [[Lt5/d; should navigate to t5/d, not be blocked.
-     */
-    private fun isSystemClass(className: String): Boolean {
-        // Strip array brackets to get base type
-        // [[Lt5/d; → t5/d; (user class, should navigate)
-        // [Ljava/lang/String; → java/lang/String; (SDK class, should NOT navigate)
-        // [I → I (primitive, should NOT navigate)
-        val baseType = className.trimStart('[')
-        
-        // Check if base type is primitive (no 'L' prefix)
-        if (!baseType.startsWith("L")) {
-            return true // Primitives (I, Z, B, etc.) are system types
-        }
-        
-        // Check if base type is SDK class
-        return baseType.startsWith("Ljava/") ||
-               baseType.startsWith("Ljavax/") ||
-               baseType.startsWith("Lj$/") ||      // Java 8 desugaring (j$ = java$)
-               baseType.startsWith("Landroid/") ||
-               baseType.startsWith("Ldalvik/") ||
-               baseType.startsWith("Lkotlin/") ||
-               baseType.startsWith("Lkotlinx/")
     }
     
     /**

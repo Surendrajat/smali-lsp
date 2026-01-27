@@ -4,6 +4,7 @@ import org.eclipse.lsp4j.*
 import xyz.surendrajat.smalilsp.core.*
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.resolver.TypeResolver
+import xyz.surendrajat.smalilsp.util.ClassUtils
 import xyz.surendrajat.smalilsp.util.InstructionSymbolExtractor
 import java.io.File
 import java.net.URI
@@ -127,8 +128,54 @@ class HoverProvider(
                 }
             }
             
+            node.first == NodeType.LABEL -> {
+                // Hover on label definition - show label info
+                val labelDef = node.second as LabelDefinition
+                hoverForLabel(labelDef, uri)
+            }
+            
             else -> null
         }
+    }
+    
+    /**
+     * Hover on label definition (:cond_0, :goto_1, etc.)
+     */
+    private fun hoverForLabel(labelDef: LabelDefinition, uri: String): Hover {
+        val file = workspaceIndex.findFileByUri(uri)
+        val referenceCount = if (file != null) {
+            // Count how many times this label is referenced
+            file.methods.sumOf { method ->
+                method.instructions.count { instruction ->
+                    instruction is JumpInstruction && instruction.targetLabel == labelDef.name
+                }
+            }
+        } else {
+            0
+        }
+        
+        val md = buildString {
+            append("**Label:** `:${labelDef.name}`\n\n")
+            append("**References:** $referenceCount jump${if (referenceCount != 1) "s" else ""}\n\n")
+            
+            // Try to determine what kind of label it is from the name
+            val labelType = when {
+                labelDef.name.startsWith("cond_") -> "Conditional branch target"
+                labelDef.name.startsWith("goto_") -> "Unconditional branch target"
+                labelDef.name.startsWith("try_start") -> "Try block start"
+                labelDef.name.startsWith("try_end") -> "Try block end"
+                labelDef.name.startsWith("catch_") -> "Exception handler"
+                labelDef.name.startsWith("catchall_") -> "Catch-all exception handler"
+                labelDef.name.startsWith("switch_") -> "Switch branch target"
+                labelDef.name.startsWith("pswitch_") -> "Packed switch target"
+                labelDef.name.startsWith("sswitch_") -> "Sparse switch target"
+                labelDef.name.startsWith("array_") -> "Array data target"
+                else -> "Branch target"
+            }
+            append("**Type:** $labelType")
+        }
+        
+        return Hover(MarkupContent(MarkupKind.MARKDOWN, md))
     }
     
     /**
@@ -304,6 +351,26 @@ class HoverProvider(
      * Uses InstructionSymbolExtractor to determine which symbol cursor is on.
      */
     private fun hoverForInstruction(instruction: Instruction, uri: String, position: Position): Hover? {
+        // Handle JumpInstruction - show label hover info
+        if (instruction is JumpInstruction) {
+            val file = workspaceIndex.findFileByUri(uri)
+            // Find the label definition
+            for (method in file?.methods ?: emptyList()) {
+                val labelDef = method.labels[instruction.targetLabel]
+                if (labelDef != null) {
+                    return hoverForLabel(labelDef, uri)
+                }
+            }
+            // Label not found in AST - show basic info
+            return Hover(
+                MarkupContent(
+                    MarkupKind.MARKDOWN,
+                    "**Jump to label:** `:${instruction.targetLabel}`\n\n" +
+                    "**Opcode:** ${instruction.opcode}"
+                )
+            )
+        }
+        
         // Read the actual line content to find which symbol cursor is on
         val lineContent = try {
             val file = File(URI(uri))
@@ -365,7 +432,7 @@ class HoverProvider(
         // Class not found - show basic info with SDK indication
         val md = buildString {
             append("**Class:** `${TypeResolver.toReadableName(className)}`\n\n")
-            if (isSDKClass(className)) {
+            if (ClassUtils.isSDKClass(className)) {
                 append("*SDK Class* - Part of Android SDK or Java standard library")
             } else {
                 append("*Not found in workspace*")
@@ -433,22 +500,6 @@ class HoverProvider(
     }
     
     /**
-     * Check if a class is an SDK/system class.
-     */
-    private fun isSDKClass(className: String): Boolean {
-        val baseType = className.trimStart('[')
-        if (!baseType.startsWith("L")) {
-            return true // Primitives are system types
-        }
-        return baseType.startsWith("Ljava/") ||
-               baseType.startsWith("Ljavax/") ||
-               baseType.startsWith("Landroid/") ||
-               baseType.startsWith("Ldalvik/") ||
-               baseType.startsWith("Lkotlin/") ||
-               baseType.startsWith("Lkotlinx/")
-    }
-    
-    /**
      * Hover on method reference in instruction.
      */
     private fun hoverForMethodReference(className: String, methodName: String, descriptor: String): Hover? {
@@ -467,7 +518,7 @@ class HoverProvider(
         val md = buildString {
             append("**Method:** `${className}.${methodName}`\n\n")
             append("**Descriptor:** `${descriptor}`\n\n")
-            if (isSDKClass(className)) {
+            if (ClassUtils.isSDKClass(className)) {
                 append("*SDK Method* - Part of Android SDK or Java standard library")
             } else {
                 append("*Not found in workspace*")
@@ -493,7 +544,7 @@ class HoverProvider(
         val md = buildString {
             append("**Field:** `${className}.${fieldName}`\n\n")
             append("**Type:** `${TypeResolver.toReadableName(fieldType)}`\n\n")
-            if (isSDKClass(className)) {
+            if (ClassUtils.isSDKClass(className)) {
                 append("*SDK Field* - Part of Android SDK or Java standard library")
             } else {
                 append("*Not found in workspace*")

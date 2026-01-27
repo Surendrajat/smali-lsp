@@ -18,13 +18,22 @@ data class SmaliFile(
      * Find AST node at given position.
      * Used by LSP providers to determine context for hover, goto-def, etc.
      * 
-     * Strategy: Check most specific nodes first (instructions > methods/fields > class).
+     * Strategy: Check most specific nodes first (labels > instructions > methods/fields > class).
      * This is because class range typically encompasses the entire file.
      * 
      * @return Pair of (nodeType, node) or null if not found
      */
     fun findNodeAt(position: Position): Pair<NodeType, Any>? {
-        // Check instructions first (most specific)
+        // Check labels first (most specific within methods)
+        for (method in methods) {
+            for ((_, labelDef) in method.labels) {
+                if (labelDef.range.contains(position)) {
+                    return Pair(NodeType.LABEL, labelDef)
+                }
+            }
+        }
+        
+        // Check instructions (most specific)
         for (method in methods) {
             for (instruction in method.instructions) {
                 if (instruction.range.contains(position)) {
@@ -67,7 +76,8 @@ enum class NodeType {
     CLASS,
     METHOD,
     FIELD,
-    INSTRUCTION
+    INSTRUCTION,
+    LABEL
 }
 
 /**
@@ -110,7 +120,8 @@ data class MethodDefinition(
     val modifiers: Set<String>,
     val parameters: List<Parameter>,
     val returnType: String,
-    val instructions: List<Instruction> = emptyList()  // Instruction-level AST
+    val instructions: List<Instruction> = emptyList(),  // Instruction-level AST
+    val labels: Map<String, LabelDefinition> = emptyMap()  // Label definitions (name -> position)
 )
 
 data class Parameter(
@@ -180,6 +191,25 @@ data class TypeInstruction(
     val className: String,
     override val range: Range
 ) : Instruction(range)
+
+/**
+ * Jump instruction: goto, if-*, packed-switch, sparse-switch
+ * References a label within the same method.
+ */
+data class JumpInstruction(
+    val opcode: String,  // goto, if-eqz, if-nez, if-eq, etc.
+    val targetLabel: String,  // Label name without colon (e.g., "cond_0")
+    override val range: Range,
+    val labelRange: Range  // Range of just the label reference for precise navigation
+) : Instruction(range)
+
+/**
+ * Label definition at a specific position in a method.
+ */
+data class LabelDefinition(
+    val name: String,  // Without colon (e.g., "cond_0")
+    val range: Range   // Full range including colon (e.g., ":cond_0")
+)
 
 /**
  * Helper to create Range objects
