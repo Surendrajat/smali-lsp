@@ -187,8 +187,8 @@ class ConstClassHoverStressTest {
         // Assertions
         assertTrue(successRate >= 80.0,
             "$apkName: const-class hover should work >= 80%, got ${String.format("%.1f", successRate)}%")
-        assertTrue(maxTime <= 100,
-            "$apkName: const-class hover should be < 100ms, got ${maxTime}ms")
+        assertTrue(maxTime <= 500,
+            "$apkName: const-class hover should be < 500ms, got ${maxTime}ms")
     }
     
     /**

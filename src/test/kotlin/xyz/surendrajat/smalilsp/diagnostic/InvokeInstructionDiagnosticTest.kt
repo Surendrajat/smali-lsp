@@ -1,6 +1,7 @@
 package xyz.surendrajat.smalilsp
 
 import org.eclipse.lsp4j.Position
+import xyz.surendrajat.smalilsp.TestUtils
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
@@ -27,7 +28,7 @@ class InvokeInstructionDiagnosticTest {
         println("\n=== INVOKE INSTRUCTION DIAGNOSTIC ===\n")
         
         // Find test files with invoke instructions
-        val apkDir = File("apk/mastodon_decompiled")
+        val apkDir = TestUtils.getMastodonApk() ?: return
         require(apkDir.exists()) { "APK directory not found: ${apkDir.absolutePath}" }
         
         // Index workspace

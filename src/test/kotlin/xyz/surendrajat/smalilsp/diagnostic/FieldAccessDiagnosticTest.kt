@@ -1,6 +1,7 @@
 package xyz.surendrajat.smalilsp
 
 import org.eclipse.lsp4j.Position
+import xyz.surendrajat.smalilsp.TestUtils
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
@@ -20,7 +21,7 @@ class FieldAccessDiagnosticTest {
     fun `diagnose iget and iput field access`() {
         println("\n=== FIELD ACCESS (iget/iput) DIAGNOSTIC ===\n")
         
-        val apkDir = File("apk/mastodon_decompiled")
+        val apkDir = TestUtils.getMastodonApk() ?: return
         require(apkDir.exists()) { "APK directory not found" }
         
         // Index workspace

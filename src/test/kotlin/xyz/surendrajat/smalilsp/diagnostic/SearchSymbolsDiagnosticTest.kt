@@ -36,7 +36,7 @@ class SearchSymbolsDiagnosticTest {
      */
     @BeforeAll
     fun setup() {
-        val mastodonDir = File(TestUtils.getProjectRoot(), "apk/mastodon_decompiled")
+        val mastodonDir = TestUtils.getMastodonApk() ?: return
         if (!mastodonDir.exists()) {
             return
         }

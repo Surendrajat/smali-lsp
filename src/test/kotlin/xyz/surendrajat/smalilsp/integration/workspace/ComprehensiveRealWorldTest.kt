@@ -12,6 +12,7 @@ import xyz.surendrajat.smalilsp.parser.SmaliParser
 import xyz.surendrajat.smalilsp.providers.HoverProvider
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import xyz.surendrajat.smalilsp.providers.ReferenceProvider
+import xyz.surendrajat.smalilsp.TestUtils
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import kotlin.system.measureTimeMillis
@@ -45,10 +46,11 @@ class ComprehensiveRealWorldTest {
         println("=".repeat(80))
         
         val projectRoot = File(System.getProperty("user.dir"))
-        val mastodonPath = File(projectRoot, "apk/mastodon_decompiled")
-        
-        if (!mastodonPath.exists()) {
-            fail<Unit>("Mastodon APK not found at ${mastodonPath.absolutePath}")
+        val mastodonPath = TestUtils.getMastodonApk()
+
+        if (mastodonPath == null) {
+            println("Mastodon APK not available — skipping ComprehensiveRealWorldTest")
+            return
         }
         
         // Index all files

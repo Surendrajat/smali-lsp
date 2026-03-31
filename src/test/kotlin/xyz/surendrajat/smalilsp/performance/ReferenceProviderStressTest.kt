@@ -2,10 +2,12 @@ package xyz.surendrajat.smalilsp.performance
 
 import kotlinx.coroutines.runBlocking
 import org.eclipse.lsp4j.Position
-import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.Timeout
+import xyz.surendrajat.smalilsp.TestUtils
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.indexer.WorkspaceScanner
 import xyz.surendrajat.smalilsp.providers.ReferenceProvider
@@ -29,7 +31,7 @@ import kotlin.system.measureTimeMillis
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ReferenceProviderStressTest {
     
-    private lateinit var workspaceRoot: File
+    private var workspaceRoot: File? = null
     private lateinit var index: WorkspaceIndex
     private lateinit var scanner: WorkspaceScanner
     private lateinit var provider: ReferenceProvider
@@ -38,8 +40,9 @@ class ReferenceProviderStressTest {
     
     @BeforeAll
     fun setup() = runBlocking {
-        workspaceRoot = File("apk/mastodon_decompiled")
-        assertTrue(workspaceRoot.exists(), "Mastodon APK must exist at apk/mastodon_decompiled")
+        val apk = TestUtils.getMastodonApk()
+        assumeTrue(apk != null, "Mastodon APK not available, skipping")
+        workspaceRoot = apk
         
         index = WorkspaceIndex()
         scanner = WorkspaceScanner(index)
@@ -51,7 +54,7 @@ class ReferenceProviderStressTest {
         
         // Index entire workspace
         indexTime = measureTimeMillis {
-            scanner.scanDirectory(workspaceRoot) { processed, total ->
+            scanner.scanDirectory(workspaceRoot!!) { processed, total ->
                 if (processed % 1000 == 0 || processed == total) {
                     println("Indexing: $processed/$total files")
                 }

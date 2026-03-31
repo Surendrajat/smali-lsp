@@ -1,6 +1,7 @@
 package xyz.surendrajat.smalilsp
 
 import org.eclipse.lsp4j.Position
+import xyz.surendrajat.smalilsp.TestUtils
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
@@ -167,7 +168,7 @@ class NewIssuesDiagnosticTest {
     fun `issue 5 - find references performance regression`() {
         println("\n=== ISSUE 5: Find References Performance ===\n")
         
-        val apkDir = File("apk/protonmail_decompiled")
+        val apkDir = TestUtils.getProtonMailApk() ?: return
         if (!apkDir.exists()) {
             println("ProtonMail APK not found, skipping test")
             return

@@ -1,6 +1,7 @@
 package xyz.surendrajat.smalilsp.performance
 
 import org.junit.jupiter.api.Test
+import xyz.surendrajat.smalilsp.TestUtils
 import xyz.surendrajat.smalilsp.providers.ReferenceProvider
 import xyz.surendrajat.smalilsp.parser.SmaliParser
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
@@ -32,7 +33,7 @@ class SDKReferencePerformanceTest {
         println("Using Mastodon APK (4,415 files)")
         
         // 1. Build index
-        val apkPath = Paths.get("apk/mastodon_decompiled").toAbsolutePath().toString()
+        val apkPath = TestUtils.getMastodonApk()?.absolutePath ?: return
         val apkDir = File(apkPath)
         
         if (!apkDir.exists()) {

@@ -1,6 +1,7 @@
 package xyz.surendrajat.smalilsp.performance
 
 import org.eclipse.lsp4j.Position
+import xyz.surendrajat.smalilsp.TestUtils
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
@@ -45,19 +46,14 @@ class ConstClassAndDirectivePerformanceTest {
         println("Testing on 3 real APKs with full indexing")
         println("=".repeat(80))
         
-        val apks = listOf(
-            "apk/mastodon_decompiled" to "Mastodon",
-            "apk/protonmail_decompiled" to "ProtonMail",
+        val apks = listOfNotNull(
+            TestUtils.getMastodonApk()?.let { it to "Mastodon" },
+            TestUtils.getProtonMailApk()?.let { it to "ProtonMail" },
         )
-        
+
         val results = mutableListOf<APKMetrics>()
-        
-        for ((path, name) in apks) {
-            val apkDir = File(path)
-            if (!apkDir.exists()) {
-                println("\n⚠️  $name not found at $path, skipping...")
-                continue
-            }
+
+        for ((apkDir, name) in apks) {
             
             println("\n" + "=".repeat(80))
             println("Testing: $name")

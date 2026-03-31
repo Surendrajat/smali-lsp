@@ -40,10 +40,12 @@ object TestUtils {
     
     /**
      * Get a specific APK decompiled directory.
-     * Returns null if the APK doesn't exist (allows tests to skip gracefully).
+     * Returns null if the APK or test-data directory doesn't exist (allows tests to skip gracefully).
      */
     fun getApk(name: String): File? {
-        val apkDir = File(getTestDataDir(), name)
+        val testDataDir = File(getProjectRoot(), "test-data")
+        if (!testDataDir.exists()) return null
+        val apkDir = File(testDataDir, name)
         return if (apkDir.exists() && apkDir.isDirectory) apkDir else null
     }
     

@@ -1,6 +1,7 @@
 package xyz.surendrajat.smalilsp.performance
 
 import org.eclipse.lsp4j.Position
+import xyz.surendrajat.smalilsp.TestUtils
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
@@ -20,7 +21,7 @@ class FindReferencesPerformanceTest {
     fun `test find references performance on Mastodon`() {
         println("\n=== FIND REFERENCES PERFORMANCE TEST (MASTODON) ===\n")
         
-        val apkDir = File("apk/mastodon_decompiled")
+        val apkDir = TestUtils.getMastodonApk() ?: return
         require(apkDir.exists()) { "Mastodon APK not found at ${apkDir.absolutePath}" }
         
         // Index workspace
@@ -155,7 +156,7 @@ class FindReferencesPerformanceTest {
     fun `test find references performance on ProtonMail`() {
         println("\n=== FIND REFERENCES PERFORMANCE TEST (PROTONMAIL) ===\n")
         
-        val apkDir = File("apk/protonmail_decompiled")
+        val apkDir = TestUtils.getProtonMailApk() ?: return
         require(apkDir.exists()) { "ProtonMail APK not found at ${apkDir.absolutePath}" }
         
         // Index workspace

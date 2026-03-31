@@ -1,6 +1,7 @@
 package xyz.surendrajat.smalilsp.integration.workspace
 
 import kotlinx.coroutines.runBlocking
+import xyz.surendrajat.smalilsp.TestUtils
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
@@ -29,8 +30,8 @@ import kotlin.system.measureTimeMillis
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class RealWorldTest {
-    
-    private val MASTODON_PATH = File("apk/mastodon_decompiled")
+
+    private val mastodonPath = TestUtils.getMastodonApk()
     
     private lateinit var index: WorkspaceIndex
     private lateinit var parser: SmaliParser
@@ -56,9 +57,9 @@ class RealWorldTest {
         documentSymbolProvider = DocumentSymbolProvider()
         
         // Index the mastodon APK
-        if (!MASTODON_PATH.exists()) {
-            fail<Unit>("Mastodon decompiled APK not found at: ${MASTODON_PATH.absolutePath}")
-            return // Unreachable but helps type inference
+        if (mastodonPath == null) {
+            println("Mastodon APK not available — skipping RealWorldTest setup")
+            return
         }
         
         println("\n📂 Indexing mastodon APK...")
@@ -66,7 +67,7 @@ class RealWorldTest {
         
         var lastReported = intArrayOf(0) // Array to allow modification in lambda
         val result = runBlocking {
-            scanner.scanDirectory(MASTODON_PATH) { processed, total ->
+            scanner.scanDirectory(mastodonPath) { processed, total ->
                 val percentDone = (processed * 100) / total
                 if (percentDone >= lastReported[0] + 10) {
                     println("   Progress: $processed/$total files ($percentDone%)")
@@ -85,7 +86,7 @@ class RealWorldTest {
         
         // Collect all indexed classes by iterating through smali files and checking with index
         // We parse each file with our parser to get the actual class name  
-        val smaliFiles = MASTODON_PATH.walkTopDown()
+        val smaliFiles = mastodonPath.walkTopDown()
             .filter { it.extension == "smali" }
             .toList()
         
