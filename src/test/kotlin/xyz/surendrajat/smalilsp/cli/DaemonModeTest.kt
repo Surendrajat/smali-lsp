@@ -3,6 +3,7 @@ package xyz.surendrajat.smalilsp.cli
 import com.google.gson.Gson
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import java.io.*
 import java.nio.file.Files
 import java.util.concurrent.TimeUnit
@@ -476,12 +477,12 @@ class DaemonModeTest {
      */
     private fun startDaemonProcess(): Process {
         // Build the jar if needed
-        val jarPath = File("build/libs").listFiles()
+        val jarFile = File("build/libs").listFiles()
             ?.firstOrNull { it.name.startsWith("smali-lsp") && it.name.endsWith("-all.jar") }
-            ?: throw IllegalStateException("LSP jar not found. Run './gradlew shadowJar' first.")
-        
+        assumeTrue(jarFile != null, "LSP jar not found — run './gradlew shadowJar' first, skipping daemon tests")
+
         return ProcessBuilder(
-            "java", "-jar", jarPath.absolutePath, "--daemon"
+            "java", "-jar", jarFile!!.absolutePath, "--daemon"
         ).start()
     }
 }

@@ -56,6 +56,9 @@ jobs:
       - name: Regression tests
         run: ./gradlew test --tests "*.regression.*"
 
+      - name: Build JAR (required for daemon tests)
+        run: ./gradlew shadowJar
+
       - name: CLI and daemon tests
         run: ./gradlew test --tests "*.cli.*"
 
