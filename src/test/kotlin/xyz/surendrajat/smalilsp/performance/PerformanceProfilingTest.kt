@@ -1,4 +1,4 @@
-package xyz.surendrajat.smalilsp
+package xyz.surendrajat.smalilsp.performance
 
 import xyz.surendrajat.smalilsp.TestUtils
 

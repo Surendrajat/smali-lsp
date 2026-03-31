@@ -2,8 +2,10 @@ package xyz.surendrajat.smalilsp.unit.indexer
 
 import kotlinx.coroutines.runBlocking
 import org.eclipse.lsp4j.Position
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import xyz.surendrajat.smalilsp.TestUtils
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.indexer.WorkspaceScanner
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider
@@ -13,39 +15,45 @@ import kotlin.test.assertTrue
 
 /**
  * Test to verify interface files are properly indexed and navigable.
+ *
+ * Requires a decompiled APK in test-data/protonmail — skipped gracefully when unavailable.
  */
 class InterfaceIndexingTest {
-    
+
     private lateinit var index: WorkspaceIndex
     private lateinit var scanner: WorkspaceScanner
     private lateinit var definitionProvider: DefinitionProvider
-    
+    private var apkDir: File? = null
+
     @BeforeEach
     fun setup() = runBlocking {
+        apkDir = TestUtils.getProtonMailApk()
+        if (apkDir == null) return@runBlocking
+
         index = WorkspaceIndex()
         scanner = WorkspaceScanner(index)
         definitionProvider = DefinitionProvider(index)
-        
-        // Index one of the APKs
-        val apkDir = File("apk/protonmail_decompiled")
-        if (apkDir.exists()) {
-            println("Indexing ${apkDir.absolutePath}...")
-            val result = scanner.scanDirectory(apkDir)
-            println("Indexed: ${result.filesSucceeded} files")
-        }
+
+        println("Indexing ${apkDir!!.absolutePath}...")
+        val result = scanner.scanDirectory(apkDir!!)
+        println("Indexed: ${result.filesSucceeded} files")
     }
     
     @Test
     fun `interface files should be indexed`() = runBlocking {
+        assumeTrue(apkDir != null, "ProtonMail APK not available — skipping")
+
         // Find interface files
-        val interfaceFiles = File("apk/protonmail_decompiled")
+        val interfaceFiles = apkDir!!
             .walkTopDown()
             .filter { it.name.contains("Interface") && it.extension == "smali" }
             .take(10)
             .toList()
-        
+
         println("\n=== Testing Interface Indexing ===")
         println("Found ${interfaceFiles.size} interface files to test")
+
+        assumeTrue(interfaceFiles.isNotEmpty(), "No interface files found in APK — skipping")
         
         var indexed = 0
         var notIndexed = 0
@@ -76,18 +84,20 @@ class InterfaceIndexingTest {
             }
         }
         
+        val total = indexed + notIndexed
         println("\nResults:")
         println("  Indexed: $indexed")
         println("  Not indexed: $notIndexed")
-        println("  Success rate: ${indexed * 100.0 / interfaceFiles.size}%")
-        
+        if (total > 0) println("  Success rate: ${"%.1f".format(indexed * 100.0 / total)}%")
+
         assertTrue(indexed > 0, "At least some interface files should be indexed")
     }
     
     @Test
     fun `interface navigation should work`() = runBlocking {
-        // Find a specific interface file
-        val interfaceFile = File("apk/protonmail_decompiled")
+        assumeTrue(apkDir != null, "ProtonMail APK not available — skipping")
+
+        val interfaceFile = apkDir!!
             .walkTopDown()
             .filter { it.name.endsWith("Interface.smali") }
             .firstOrNull()

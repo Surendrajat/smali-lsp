@@ -45,7 +45,7 @@ dependencies {
 // Configure ANTLR
 tasks.generateGrammarSource {
     maxHeapSize = "128m"
-    arguments = arguments + listOf("-visitor", "-package", "xyz.surendrajat.smalilsp.parser.generated")
+    arguments = arguments + listOf("-visitor", "-long-messages", "-package", "xyz.surendrajat.smalilsp.parser.generated")
     outputDirectory = file("build/generated-src/antlr/main/xyz/surendrajat/smalilsp/parser/generated")
 }
 
@@ -84,12 +84,6 @@ tasks.jacocoTestReport {
         xml.required.set(true)
         html.required.set(true)
     }
-}
-
-tasks.generateGrammarSource {
-    maxHeapSize = "64m"
-    arguments = arguments + listOf("-visitor", "-long-messages", "-package", "xyz.surendrajat.smalilsp.parser.generated")
-    outputDirectory = file("${project.buildDir}/generated-src/antlr/main/xyz/surendrajat/smalilsp/parser/generated")
 }
 
 tasks.shadowJar {

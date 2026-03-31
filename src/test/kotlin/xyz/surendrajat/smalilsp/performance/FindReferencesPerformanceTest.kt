@@ -1,4 +1,4 @@
-package xyz.surendrajat.smalilsp
+package xyz.surendrajat.smalilsp.performance
 
 import org.eclipse.lsp4j.Position
 import org.junit.jupiter.api.Test

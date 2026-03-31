@@ -1,8 +1,10 @@
-package xyz.surendrajat.smalilsp
+package xyz.surendrajat.smalilsp.regression
 
 import org.eclipse.lsp4j.Position
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
+import xyz.surendrajat.smalilsp.TestUtils
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.parser.SmaliParser
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider
@@ -18,17 +20,16 @@ class ConstClassCheckCastTest {
     
     @Test
     fun `diagnose const-class and check-cast`() {
+        val apkDir = TestUtils.getMastodonApk()
+        assumeTrue(apkDir != null, "Mastodon APK not available — skipping")
         println("\n=== CONST-CLASS AND CHECK-CAST DIAGNOSTIC ===\n")
-        
-        val apkDir = File("apk/mastodon_decompiled")
-        require(apkDir.exists()) { "APK directory not found" }
         
         // Index workspace
         println("Indexing workspace...")
         val parser = SmaliParser()
         val workspaceIndex = WorkspaceIndex()
         
-        val files = apkDir.walkTopDown()
+        val files = apkDir!!.walkTopDown()
             .filter { it.extension == "smali" }
             .toList()
         
