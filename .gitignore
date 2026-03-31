@@ -1,0 +1,27 @@
+.gradle/
+build/
+bin/
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+.DS_Store
+*.log
+
+# Generated sources
+**/generated-src/
+
+apk*
+**/*archive*
+.kotlin
+*.backup*
+*.bak*
+*.md
+*.sh
+*.txt
+.github
+docs
+*.py
+test-*
+*.code-workspace
