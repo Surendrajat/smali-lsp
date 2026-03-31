@@ -20,11 +20,11 @@ import kotlin.time.measureTime
 class MastodonStressE2ETest {
     
     companion object {
-        private val MASTODON_PATH = TestUtils.getMastodonApk()!!.absolutePath
+        private val MASTODON_PATH = TestUtils.getMastodonApk()?.absolutePath ?: ""
         
         @JvmStatic
         fun mastodonExists(): Boolean {
-            return File(MASTODON_PATH).exists()
+            return MASTODON_PATH.isNotEmpty() && File(MASTODON_PATH).exists()
         }
     }
     

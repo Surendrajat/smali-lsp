@@ -22,7 +22,7 @@ class DiagnosticE2ETest {
     
     private lateinit var harness: E2ETestHarness
     private lateinit var workspace: TestWorkspace
-    private val mastodonDir = TestUtils.getMastodonApk()!!
+    private val mastodonDir = TestUtils.getMastodonApk()
     
     @BeforeEach
     fun setup() {
@@ -105,7 +105,7 @@ class DiagnosticE2ETest {
     
     @Test
     fun `diagnostics on Mastodon files`() {
-        if (!mastodonDir.exists()) {
+        if (mastodonDir == null) {
             println("⏭️  Mastodon APK not available, skipping")
             return
         }

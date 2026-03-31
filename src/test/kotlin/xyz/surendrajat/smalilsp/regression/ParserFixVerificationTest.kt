@@ -81,8 +81,11 @@ class ParserFixVerificationTest {
     
     @Test
     fun `stress test real APK - Mastodon if available`() {
-        val mastodonDir = TestUtils.getMastodonApk()!!
-        
+        val mastodonDir = TestUtils.getMastodonApk() ?: run {
+            println("⚠️  Mastodon APK not found - skipping stress test")
+            return
+        }
+
         if (!mastodonDir.exists()) {
             println("⚠️  Mastodon APK not found - skipping stress test")
             return
@@ -146,8 +149,11 @@ class ParserFixVerificationTest {
     @Test
     fun `stress test real APK - based1111`() {
         // NOTE: based1111 not available, using Mastodon
-        val basedDir = TestUtils.getMastodonApk()!!
-        
+        val basedDir = TestUtils.getMastodonApk() ?: run {
+            println("⚠️  based1111 APK not found - skipping stress test")
+            return
+        }
+
         if (!basedDir.exists()) {
             println("⚠️  based1111 APK not found - skipping stress test")
             return

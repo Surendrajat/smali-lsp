@@ -47,9 +47,9 @@ class InstructionNavigationStressTest {
         println("=".repeat(80) + "\n")
         
         // Find all APK directories
-        val apkDirs = listOf(
-            TestUtils.getProtonMailApk()!!,
-            TestUtils.getMastodonApk()!!
+        val apkDirs = listOfNotNull(
+            TestUtils.getProtonMailApk(),
+            TestUtils.getMastodonApk()
         ).filter { it.exists() }
         
         if (apkDirs.isEmpty()) {

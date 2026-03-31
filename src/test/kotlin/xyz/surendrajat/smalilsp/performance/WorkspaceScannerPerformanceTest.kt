@@ -20,11 +20,13 @@ class WorkspaceScannerPerformanceTest {
     companion object {
         // Path to real smali files from APK (if available)
         // Using ProtonMail (18,249 files) for large dataset test
-        private val LARGE_DATASET_PATH = TestUtils.getProtonMailApk()!!.absolutePath
+        private val LARGE_DATASET_PATH = TestUtils.getProtonMailApk()?.absolutePath ?: ""
         
         @JvmStatic
         fun largeDatasetExists(): Boolean {
-            val dir = File(LARGE_DATASET_PATH)
+            val path = LARGE_DATASET_PATH
+            if (path.isEmpty()) return false
+            val dir = File(path)
             return dir.exists() && dir.isDirectory
         }
     }

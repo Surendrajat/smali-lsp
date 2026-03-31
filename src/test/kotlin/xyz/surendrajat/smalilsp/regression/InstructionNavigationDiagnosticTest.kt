@@ -27,7 +27,10 @@ class InstructionNavigationDiagnosticTest {
         println("=".repeat(80) + "\n")
         
         // Sample 100 files
-        val apkDir = TestUtils.getProtonMailApk()!!
+        val apkDir = TestUtils.getProtonMailApk() ?: run {
+            println("SKIPPED: ProtonMail APK not available")
+            return
+        }
         val files = apkDir.walkTopDown()
             .filter { it.isFile && it.extension == "smali" }
             .toList()

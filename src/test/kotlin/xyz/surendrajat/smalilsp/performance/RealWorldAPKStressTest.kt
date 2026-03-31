@@ -247,8 +247,7 @@ class RealWorldAPKStressTest {
     
     @Test
     fun `focused validation on specific symbol types`() {
-        val mastodonPath = TestUtils.getMastodonApk()!!
-        if (!mastodonPath.exists()) {
+        val mastodonPath = TestUtils.getMastodonApk() ?: run {
             println("Mastodon APK not found, skipping test")
             return
         }

@@ -32,7 +32,7 @@ class PerformanceProfilingTest {
         
         val index = WorkspaceIndex()
         val scanner = WorkspaceScanner(index)
-        val protonMailDir = TestUtils.getProtonMailApk()!!
+        val protonMailDir = TestUtils.getProtonMailApk() ?: run { println("Skipping - ProtonMail APK not available"); return@runBlocking }
         
         // Profile 1000 files
         val result = scanner.scanDirectoryWithProfiling(protonMailDir, sampleSize = 1000) { processed, total ->
@@ -99,7 +99,7 @@ class PerformanceProfilingTest {
         
         val index = WorkspaceIndex()
         val scanner = WorkspaceScanner(index)
-        val mastodonDir = TestUtils.getMastodonApk()!!
+        val mastodonDir = TestUtils.getMastodonApk() ?: run { println("Skipping - Mastodon APK not available"); return@runBlocking }
         
         // Profile 1000 files
         val result = scanner.scanDirectoryWithProfiling(mastodonDir, sampleSize = 1000) { processed, total ->
@@ -123,7 +123,7 @@ class PerformanceProfilingTest {
         
         val index = WorkspaceIndex()
         val scanner = WorkspaceScanner(index)
-        val protonMailDir = TestUtils.getProtonMailApk()!!
+        val protonMailDir = TestUtils.getProtonMailApk() ?: run { println("Skipping - ProtonMail APK not available"); return@runBlocking }
         
         // Profile just 100 files for very stable measurements
         val result = scanner.scanDirectoryWithProfiling(protonMailDir, sampleSize = 100) { processed, total ->

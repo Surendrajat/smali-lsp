@@ -17,9 +17,10 @@ class SdkClassReferenceTest {
     
     @Test
     fun `find refs on Object init in Mastodon should return reasonable count`() {
+        val apk = TestUtils.getMastodonApk() ?: return
         testSdkClassReferences(
             apkName = "Mastodon",
-            apkDir = TestUtils.getMastodonApk()!!,
+            apkDir = apk,
             sdkClassName = "Ljava/lang/Object;",
             methodName = "<init>",
             descriptor = "()V",
@@ -29,9 +30,10 @@ class SdkClassReferenceTest {
     
     @Test
     fun `find refs on Enum init in Mastodon should return reasonable count`() {
+        val apk = TestUtils.getMastodonApk() ?: return
         testSdkClassReferences(
             apkName = "Mastodon",
-            apkDir = TestUtils.getMastodonApk()!!,
+            apkDir = apk,
             sdkClassName = "Ljava/lang/Enum;",
             methodName = "<init>",
             descriptor = "(Ljava/lang/String;I)V",
@@ -41,9 +43,10 @@ class SdkClassReferenceTest {
     
     @Test
     fun `find refs on Object init in ProtonMail should return reasonable count`() {
+        val apk = TestUtils.getProtonMailApk() ?: return
         testSdkClassReferences(
             apkName = "ProtonMail",
-            apkDir = TestUtils.getProtonMailApk()!!,
+            apkDir = apk,
             sdkClassName = "Ljava/lang/Object;",
             methodName = "<init>",
             descriptor = "()V",
@@ -53,9 +56,10 @@ class SdkClassReferenceTest {
     
     @Test
     fun `find refs on Enum init in ProtonMail should return reasonable count`() {
+        val apk = TestUtils.getProtonMailApk() ?: return
         testSdkClassReferences(
             apkName = "ProtonMail",
-            apkDir = TestUtils.getProtonMailApk()!!,
+            apkDir = apk,
             sdkClassName = "Ljava/lang/Enum;",
             methodName = "<init>",
             descriptor = "(Ljava/lang/String;I)V",
@@ -65,9 +69,10 @@ class SdkClassReferenceTest {
     
     @Test
     fun `find refs on Object init in Mastodon2 should return reasonable count`() {
+        val apk = TestUtils.getMastodonApk() ?: return
         testSdkClassReferences(
             apkName = "Mastodon",
-            apkDir = TestUtils.getMastodonApk()!!,
+            apkDir = apk,
             sdkClassName = "Ljava/lang/Object;",
             methodName = "<init>",
             descriptor = "()V",
@@ -77,9 +82,10 @@ class SdkClassReferenceTest {
     
     @Test
     fun `find refs on Enum init in Mastodon2 should return reasonable count`() {
+        val apk = TestUtils.getMastodonApk() ?: return
         testSdkClassReferences(
             apkName = "Mastodon",
-            apkDir = TestUtils.getMastodonApk()!!,
+            apkDir = apk,
             sdkClassName = "Ljava/lang/Enum;",
             methodName = "<init>",
             descriptor = "(Ljava/lang/String;I)V",

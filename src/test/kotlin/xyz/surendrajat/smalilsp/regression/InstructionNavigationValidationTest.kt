@@ -60,9 +60,9 @@ class InstructionNavigationValidationTest {
         println("=".repeat(80) + "\n")
         
         // Find APK directories
-        val apkDirs = listOf(
-            TestUtils.getProtonMailApk()!!,
-            TestUtils.getMastodonApk()!!
+        val apkDirs = listOfNotNull(
+            TestUtils.getProtonMailApk(),
+            TestUtils.getMastodonApk()
         ).filter { it.exists() }
         
         if (apkDirs.isEmpty()) {

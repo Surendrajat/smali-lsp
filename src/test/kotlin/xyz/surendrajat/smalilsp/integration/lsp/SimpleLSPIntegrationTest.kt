@@ -157,10 +157,7 @@ class SimpleLSPIntegrationTest {
     
     @Test
     fun parseRealFileTest() {
-        val mastodonPath = TestUtils.getMastodonApk()!!.absolutePath
-        val mastodonDir = File(mastodonPath)
-        
-        if (!mastodonDir.exists()) {
+        val mastodonDir = TestUtils.getMastodonApk() ?: run {
             println("⚠ Mastodon APK not found, skipping")
             return
         }

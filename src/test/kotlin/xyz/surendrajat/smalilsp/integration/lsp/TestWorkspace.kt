@@ -179,7 +179,7 @@ class TestWorkspace(val baseDir: File) {
         /**
          * Create workspace from Mastodon APK decompiled sources
          */
-        fun fromMastodon(basePath: String = TestUtils.getMastodonApk()!!.absolutePath): TestWorkspace {
+        fun fromMastodon(basePath: String = TestUtils.getMastodonApk()?.absolutePath ?: ""): TestWorkspace {
             val dir = File(basePath)
             require(dir.exists()) { "Mastodon APK not found at: $basePath" }
             return TestWorkspace(dir)
@@ -188,7 +188,7 @@ class TestWorkspace(val baseDir: File) {
         /**
          * Create workspace from based1111 APK decompiled sources
          */
-        fun fromBased1111(basePath: String = TestUtils.getMastodonApk()!!.absolutePath): TestWorkspace {
+        fun fromBased1111(basePath: String = TestUtils.getMastodonApk()?.absolutePath ?: ""): TestWorkspace {
             val dir = File(basePath)
             require(dir.exists()) { "based1111 APK not found at: $basePath" }
             return TestWorkspace(dir)
