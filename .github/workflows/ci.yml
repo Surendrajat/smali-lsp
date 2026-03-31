@@ -51,10 +51,13 @@ jobs:
         run: ./gradlew test --tests "*.unit.*"
 
       - name: Integration tests (synthetic only)
-        run: ./gradlew test --tests "*.integration.lsp.*" --tests "*.integration.navigation.*"
+        run: ./gradlew test --tests "*.integration.lsp.*" --tests "*.integration.navigation.*" --tests "*.integration.workspace.*"
 
       - name: Regression tests
         run: ./gradlew test --tests "*.regression.*"
+
+      - name: CLI and daemon tests
+        run: ./gradlew test --tests "*.cli.*"
 
       - name: Test Report
         uses: dorny/test-reporter@v3

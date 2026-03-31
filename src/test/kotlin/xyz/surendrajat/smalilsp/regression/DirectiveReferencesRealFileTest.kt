@@ -12,16 +12,25 @@ import kotlin.test.assertTrue
 /**
  * Test directive references using REAL files (not virtual URIs).
  * This tests the complete flow including file reading for cursor-based extraction.
+ *
+ * Test fixtures live in src/test/resources/directive-refs/ and are always available in CI.
  */
 class DirectiveReferencesRealFileTest {
-    
+
+    /** Resolve the directive-refs directory from the test classpath resource. */
+    private fun getTestDir(): File {
+        val resource = DirectiveReferencesRealFileTest::class.java.classLoader
+            .getResource("directive-refs")
+            ?: error("directive-refs resource directory not found on classpath")
+        return File(resource.toURI())
+    }
     @Test
     fun `find references from class declaration includes directive references`() {
         // Setup: Parse all test files
         val parser = SmaliParser()
         val index = WorkspaceIndex()
         
-        val testDir = File("test-directive-refs")
+        val testDir = getTestDir()
         assertTrue(testDir.exists() && testDir.isDirectory, "Test directory should exist")
         
         testDir.listFiles()?.filter { it.extension == "smali" }?.forEach { file ->
@@ -36,7 +45,7 @@ class DirectiveReferencesRealFileTest {
         val provider = ReferenceProvider(index)
         
         // Test 1: Find references to TestClass (should find .method params/return, .field, const-class)
-        val testClassUri = File("test-directive-refs/TestClass.smali").toURI().toString()
+        val testClassUri = File(getTestDir(), "TestClass.smali").toURI().toString()
         val refs = provider.findReferences(testClassUri, Position(0, 18), true)
         
         println("\n=== TestClass References ===")
@@ -54,7 +63,7 @@ class DirectiveReferencesRealFileTest {
         val parser = SmaliParser()
         val index = WorkspaceIndex()
         
-        val testDir = File("test-directive-refs")
+        val testDir = getTestDir()
         testDir.listFiles()?.filter { it.extension == "smali" }?.forEach { file ->
             val uri = file.toURI().toString()
             val content = file.readText()
@@ -67,7 +76,7 @@ class DirectiveReferencesRealFileTest {
         val provider = ReferenceProvider(index)
         
         // Test 2: Click on ".super LBaseClass;" in DerivedClass.smali
-        val derivedUri = File("test-directive-refs/DerivedClass.smali").toURI().toString()
+        val derivedUri = File(getTestDir(), "DerivedClass.smali").toURI().toString()
         // Line 1: .super LBaseClass;
         // Position at character 7-16 (LBaseClass)
         val refs = provider.findReferences(derivedUri, Position(1, 10), true)
@@ -87,7 +96,7 @@ class DirectiveReferencesRealFileTest {
         val parser = SmaliParser()
         val index = WorkspaceIndex()
         
-        val testDir = File("test-directive-refs")
+        val testDir = getTestDir()
         testDir.listFiles()?.filter { it.extension == "smali" }?.forEach { file ->
             val uri = file.toURI().toString()
             val content = file.readText()
@@ -100,7 +109,7 @@ class DirectiveReferencesRealFileTest {
         val provider = ReferenceProvider(index)
         
         // Test 3: Click on "LTestClass;" in method parameter/return
-        val testClassUri = File("test-directive-refs/TestClass.smali").toURI().toString()
+        val testClassUri = File(getTestDir(), "TestClass.smali").toURI().toString()
         // Line 3: .method public test(LTestClass;)LTestClass;
         // Position at character 24 (in parameter type)
         val refs = provider.findReferences(testClassUri, Position(3, 24), true)
@@ -120,7 +129,7 @@ class DirectiveReferencesRealFileTest {
         val parser = SmaliParser()
         val index = WorkspaceIndex()
         
-        val testDir = File("test-directive-refs")
+        val testDir = getTestDir()
         testDir.listFiles()?.filter { it.extension == "smali" }?.forEach { file ->
             val uri = file.toURI().toString()
             val content = file.readText()
@@ -133,7 +142,7 @@ class DirectiveReferencesRealFileTest {
         val provider = ReferenceProvider(index)
         
         // Test 4: Click on "LTestClass;" in field type
-        val testClassUri = File("test-directive-refs/TestClass.smali").toURI().toString()
+        val testClassUri = File(getTestDir(), "TestClass.smali").toURI().toString()
         // Line 9: .field private myField:LTestClass;
         // Position at character 27 (in type)
         val refs = provider.findReferences(testClassUri, Position(9, 27), true)
