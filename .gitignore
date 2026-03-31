@@ -18,9 +18,10 @@ apk*
 *.backup*
 *.bak*
 *.md
+!README.md
 *.sh
 *.txt
-.github
+!.github/
 docs
 *.py
 test-*
