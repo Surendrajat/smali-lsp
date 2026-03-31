@@ -1,6 +1,7 @@
 package xyz.surendrajat.smalilsp.integration.workspace
 
 import org.eclipse.lsp4j.Position
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -47,12 +48,8 @@ class ComprehensiveRealWorldTest {
         
         val projectRoot = File(System.getProperty("user.dir"))
         val mastodonPath = TestUtils.getMastodonApk()
+        assumeTrue(mastodonPath != null, "Mastodon APK not available — skipping ComprehensiveRealWorldTest")
 
-        if (mastodonPath == null) {
-            println("Mastodon APK not available — skipping ComprehensiveRealWorldTest")
-            return
-        }
-        
         // Index all files
         index = WorkspaceIndex()
         parser = SmaliParser()
@@ -63,7 +60,7 @@ class ComprehensiveRealWorldTest {
         println("\n📂 Indexing mastodon APK...")
         val scanner = WorkspaceScanner(index, parser)
         runBlocking {
-            scanner.scanDirectory(mastodonPath)
+            scanner.scanDirectory(mastodonPath!!)
         }
         
         // Get ALL classes (not a sample!)

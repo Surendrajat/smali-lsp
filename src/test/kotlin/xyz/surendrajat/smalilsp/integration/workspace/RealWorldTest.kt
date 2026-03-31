@@ -4,6 +4,7 @@ import kotlinx.coroutines.runBlocking
 import xyz.surendrajat.smalilsp.TestUtils
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.indexer.WorkspaceScanner
 import xyz.surendrajat.smalilsp.parser.SmaliParser
@@ -57,17 +58,14 @@ class RealWorldTest {
         documentSymbolProvider = DocumentSymbolProvider()
         
         // Index the mastodon APK
-        if (mastodonPath == null) {
-            println("Mastodon APK not available — skipping RealWorldTest setup")
-            return
-        }
+        assumeTrue(mastodonPath != null, "Mastodon APK not available — skipping RealWorldTest")
         
         println("\n📂 Indexing mastodon APK...")
         val scanner = WorkspaceScanner(index)
         
         var lastReported = intArrayOf(0) // Array to allow modification in lambda
         val result = runBlocking {
-            scanner.scanDirectory(mastodonPath) { processed, total ->
+            scanner.scanDirectory(mastodonPath!!) { processed, total ->
                 val percentDone = (processed * 100) / total
                 if (percentDone >= lastReported[0] + 10) {
                     println("   Progress: $processed/$total files ($percentDone%)")
@@ -86,7 +84,7 @@ class RealWorldTest {
         
         // Collect all indexed classes by iterating through smali files and checking with index
         // We parse each file with our parser to get the actual class name  
-        val smaliFiles = mastodonPath.walkTopDown()
+        val smaliFiles = mastodonPath!!.walkTopDown()
             .filter { it.extension == "smali" }
             .toList()
         
