@@ -79,3 +79,13 @@ ANTLR4 Grammar → SmaliParser → ASTBuilder → WorkspaceIndex → LSP Provide
 ./gradlew test --tests "*.regression.*"
 ./gradlew test --tests "*.performance.*"
 ```
+
+## License
+
+Copyright (C) 2026 Surendrajat
+
+This project is licensed under the [GNU General Public License v3.0](LICENSE), except files under `src/main/antlr/` which are MIT licensed (see header in each file).
+
+## Credits
+
+- @psygate for https://github.com/psygate/smali-antlr4-grammar
