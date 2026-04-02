@@ -76,8 +76,12 @@ tasks.test {
         showStandardStreams = true
     }
     
-    // Parallel execution
-    maxParallelForks = Runtime.getRuntime().availableProcessors()
+    // Each test worker needs enough heap for large APK tests (indexing 4K+ files)
+    maxHeapSize = "1g"
+    
+    // Limit parallelism: each worker holds a parsed APK in memory.
+    // Too many forks OOM; too few wastes time. 4 is a safe default.
+    maxParallelForks = minOf(4, Runtime.getRuntime().availableProcessors())
     
     // Fail fast
     failFast = false
