@@ -198,11 +198,12 @@ class SearchSymbolsDiagnosticTest {
         
         val results = provider.search("Activity")
         
-        // Count actual matches (both classes and methods containing "Activity" in the name, not path)
+        // Count actual matches (classes matching by simple name OR package path, plus methods/fields by name)
         val actualClassMatches = index.getAllClassNames().count { className ->
             val simpleName = className.removePrefix("L").removeSuffix(";")
                 .substringAfterLast("/").substringAfterLast("$")
-            simpleName.contains("Activity", ignoreCase = true)
+            val fullPath = className.removePrefix("L").removeSuffix(";")
+            simpleName.contains("Activity", ignoreCase = true) || fullPath.contains("Activity", ignoreCase = true)
         }
         val actualMethodMatches = index.getAllFiles().sumOf { file ->
             file.methods.count { it.name.contains("Activity", ignoreCase = true) }
