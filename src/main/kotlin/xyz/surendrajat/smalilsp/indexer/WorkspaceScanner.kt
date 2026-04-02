@@ -1,6 +1,7 @@
 package xyz.surendrajat.smalilsp.indexer
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.parser.SmaliParser
 import org.slf4j.Logger
@@ -56,30 +57,43 @@ class WorkspaceScanner(
             )
         }
         
-        // Process files in parallel
+        // Process files in parallel using a bounded channel + fixed worker pool.
+        // For large projects (100K+ files), launching one coroutine per file creates
+        // 100K Deferred objects simultaneously → GC thrashing.  A fixed worker pool
+        // gives identical throughput with O(workers) live objects.
         val succeeded = AtomicInteger(0)
         val failed = AtomicInteger(0)
         val processed = AtomicInteger(0)
-        
+        val workerCount = maxOf(2, Runtime.getRuntime().availableProcessors())
+        // Buffer one batch ahead per worker so workers are never starved.
+        val channel = Channel<File>(capacity = workerCount * 4)
+
         coroutineScope {
-            // Process all files in parallel
-            // Uses Dispatchers.Default (optimal for CPU-bound parsing)
-            smaliFiles.map { file ->
-                async(Dispatchers.Default) {
-                    try {
-                        processFile(file)
-                        succeeded.incrementAndGet()
-                    } catch (e: Exception) {
-                        logger.warn("Failed to process ${file.absolutePath}: ${e.message}")
-                        failed.incrementAndGet()
-                    } finally {
-                        val current = processed.incrementAndGet()
-                        if (current % 1000 == 0 || current == totalFiles) {
-                            progressCallback?.invoke(current, totalFiles)
+            // Producer: feed files into the channel
+            launch {
+                smaliFiles.forEach { channel.send(it) }
+                channel.close()
+            }
+
+            // Workers: drain the channel, one coroutine per CPU core
+            repeat(workerCount) {
+                launch(Dispatchers.Default) {
+                    for (file in channel) {
+                        try {
+                            processFile(file)
+                            succeeded.incrementAndGet()
+                        } catch (e: Exception) {
+                            logger.warn("Failed to process ${file.absolutePath}: ${e.message}")
+                            failed.incrementAndGet()
+                        } finally {
+                            val current = processed.incrementAndGet()
+                            if (current % 1000 == 0 || current == totalFiles) {
+                                progressCallback?.invoke(current, totalFiles)
+                            }
                         }
                     }
                 }
-            }.awaitAll()
+            }
         }
         
         val duration = System.currentTimeMillis() - startTime
