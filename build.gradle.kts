@@ -1,5 +1,5 @@
 plugins {
-    kotlin("jvm") version "1.9.21"
+    kotlin("jvm") version "2.3.20"
     id("com.github.johnrengelman.shadow") version "8.1.1"
     id("antlr")
     id("jacoco")
@@ -22,7 +22,7 @@ dependencies {
     implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:0.21.1")
     
     // Kotlin coroutines for concurrency
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     
     // JSON for CLI mode
     implementation("com.google.code.gson:gson:2.10.1")

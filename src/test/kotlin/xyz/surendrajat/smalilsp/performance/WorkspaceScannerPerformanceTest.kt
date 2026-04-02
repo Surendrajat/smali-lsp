@@ -125,7 +125,7 @@ class WorkspaceScannerPerformanceTest {
     @Test
     fun `performance test with synthetic medium dataset`() = runBlocking {
         // Create synthetic dataset for CI/testing environments without real data
-        val tempDir = createTempDir("smali-perf-test")
+        val tempDir = kotlin.io.path.createTempDirectory("smali-perf-test").toFile()
         try {
             // Create 500 synthetic smali files
             val fileCount = 500
