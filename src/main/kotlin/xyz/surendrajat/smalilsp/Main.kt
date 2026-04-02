@@ -10,6 +10,7 @@ import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import xyz.surendrajat.smalilsp.providers.HoverProvider
 import xyz.surendrajat.smalilsp.providers.ReferenceProvider
 import xyz.surendrajat.smalilsp.cli.DaemonMode
+import xyz.surendrajat.smalilsp.cli.McpMode
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.concurrent.CompletableFuture
@@ -26,25 +27,19 @@ import kotlinx.coroutines.runBlocking
  * 
  * Usage:
  *   java -jar smali-lsp-all.jar          (LSP mode - VS Code extension)
- *   java -jar smali-lsp-all.jar --daemon (Daemon mode - MCP wrapper)
- * 
- * Protocol: LSP 3.16
- * 
- * Daemon Mode Commands:
- *   index <directory>                       - Index and keep in memory
- *   find-definition <uri> <line> <char>     - Find definition
- *   find-references <uri> <line> <char>     - Find all references
- *   search-symbols <pattern>                - Search by pattern
- *   hover <uri> <line> <char>               - Get hover info
- *   diagnostics <uri> <content>             - Get diagnostics
- *   document-symbols <uri>                  - Get document outline
- *   get-stats                               - Get statistics
- *   shutdown                                - Graceful shutdown
+ *   java -jar smali-lsp-all.jar --daemon (Daemon mode - CLI/agent JSON protocol)
+ *   java -jar smali-lsp-all.jar --mcp    (MCP server - AI agent integration)
  */
 fun main(args: Array<String>) {
     // Check for daemon mode
     if (args.isNotEmpty() && args[0] == "--daemon") {
         DaemonMode().run()
+        return
+    }
+
+    // Check for MCP server mode
+    if (args.isNotEmpty() && args[0] == "--mcp") {
+        McpMode().run()
         return
     }
     

@@ -1,5 +1,6 @@
 plugins {
     kotlin("jvm") version "2.3.20"
+    kotlin("plugin.serialization") version "2.3.20"
     id("com.github.johnrengelman.shadow") version "8.1.1"
     id("antlr")
     id("jacoco")
@@ -26,6 +27,9 @@ dependencies {
     
     // JSON for CLI mode
     implementation("com.google.code.gson:gson:2.10.1")
+
+    // MCP (Model Context Protocol) server
+    implementation("io.modelcontextprotocol:kotlin-sdk-server:0.10.0")
     
     // Logging
     implementation("org.slf4j:slf4j-api:2.0.9")
