@@ -143,12 +143,7 @@ class SmaliParser {
                 
                 val result = builder.build()
                 
-                // Post-process: Parse instructions for navigation
-                if (result != null) {
-                    parseInstructionsInMethods(result, content)
-                } else {
-                    result
-                }
+                result
             }
             
         } catch (e: Exception) {
@@ -160,13 +155,4 @@ class SmaliParser {
         return ParseResult(smaliFile, syntaxErrors)
     }
     
-    /**
-     * Parse instructions in all methods (post-processing).
-     * Note: Instructions are now parsed directly by ASTBuilder during tree walking.
-     * This method is kept for compatibility but returns the file as-is.
-     */
-    private fun parseInstructionsInMethods(file: SmaliFile, content: String): SmaliFile {
-        // Instructions are now parsed by ASTBuilder during ANTLR tree walking
-        return file
-    }
 }
