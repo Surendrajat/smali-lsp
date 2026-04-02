@@ -94,12 +94,43 @@ tasks.shadowJar {
     archiveBaseName.set("smali-lsp")
     archiveClassifier.set("all")
     archiveVersion.set("1.0.0")
-    
+
     manifest {
         attributes["Main-Class"] = "xyz.surendrajat.smalilsp.MainKt"
     }
-    
-    // Don't minimize - keep all dependencies
+
+    // --- Exclude build-time-only ANTLR4 tool classes ---
+    // antlr("org.antlr:antlr4:4.13.1") leaks into runtimeClasspath via the ANTLR plugin.
+    // Only antlr4-runtime (org/antlr/v4/runtime/**) is needed at runtime.
+    // The tool packages below are used only during grammar code generation at build time.
+    exclude("org/antlr/v4/Tool*.class")  // top-level Tool class
+    exclude("org/antlr/v4/tool/**")
+    exclude("org/antlr/v4/codegen/**")
+    exclude("org/antlr/v4/analysis/**")
+    exclude("org/antlr/v4/automata/**")
+    exclude("org/antlr/v4/gui/**")
+    exclude("org/antlr/v4/semantics/**")
+    exclude("org/antlr/v4/parse/**")
+    exclude("org/antlr/v4/misc/**")     // tool misc (runtime misc lives under org/antlr/v4/runtime/misc)
+
+    // ANTLR3 runtime — transitive dep of the full antlr4 tool, not used at runtime
+    exclude("org/antlr/runtime/**")
+
+    // StringTemplate 4 — only used by ANTLR4 code generation, not at runtime
+    exclude("org/stringtemplate/**")
+
+    // Tree layout — only for ANTLR4 GUI visualization
+    exclude("org/abego/**")
+
+    // ICU4J — only used by ANTLR4 tool for unicode property analysis during grammar compilation
+    exclude("com/ibm/**")
+
+    // --- Exclude Ktor HTTP/WebSocket transport ---
+    // The MCP Kotlin SDK includes Ktor for HTTP+SSE transport.
+    // We only use StdioServerTransport. Ktor classes are never loaded on the stdio path
+    // (class loading is lazy; KtorServerKt extension functions are never called).
+    exclude("io/ktor/**")
+    exclude("com/typesafe/**")  // Typesafe Config, pulled in by Ktor
 }
 
 kotlin {
