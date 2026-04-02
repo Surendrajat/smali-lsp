@@ -115,7 +115,7 @@ class WorkspaceScanner(
      */
     private fun processFile(file: File) {
         val uri = file.toURI().toString()
-        val content = file.readText()
+        val content = file.readText(Charsets.UTF_8)
         
         val smaliFile = parser.parse(uri, content)
         if (smaliFile != null) {
@@ -135,7 +135,7 @@ class WorkspaceScanner(
         // 1. File I/O
         val ioStart = System.nanoTime()
         val uri = file.toURI().toString()
-        val content = file.readText()
+        val content = file.readText(Charsets.UTF_8)
         val ioTime = System.nanoTime() - ioStart
         
         // 2. Parsing (ANTLR)
