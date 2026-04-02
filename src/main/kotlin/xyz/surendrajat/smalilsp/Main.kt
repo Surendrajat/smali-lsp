@@ -9,7 +9,6 @@ import xyz.surendrajat.smalilsp.indexer.WorkspaceScanner
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import xyz.surendrajat.smalilsp.providers.HoverProvider
 import xyz.surendrajat.smalilsp.providers.ReferenceProvider
-import xyz.surendrajat.smalilsp.cli.DaemonMode
 import xyz.surendrajat.smalilsp.cli.McpMode
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -21,22 +20,15 @@ import kotlinx.coroutines.runBlocking
  * 
  * Architecture:
  * - Communicates via LSP protocol over stdio (default mode)
- * - OR runs in daemon mode for MCP/agent access (keeps index in memory, <10ms queries)
+ * - OR runs as MCP server for AI agent integration (keeps index in memory, <10ms queries)
  * - Indexes workspace on initialization
  * - Provides goto definition, hover, find references, diagnostics
- * 
+ *
  * Usage:
- *   java -jar smali-lsp-all.jar          (LSP mode - VS Code extension)
- *   java -jar smali-lsp-all.jar --daemon (Daemon mode - CLI/agent JSON protocol)
- *   java -jar smali-lsp-all.jar --mcp    (MCP server - AI agent integration)
+ *   java -jar smali-lsp-all.jar       (LSP mode - VS Code extension)
+ *   java -jar smali-lsp-all.jar --mcp (MCP server - AI agent integration)
  */
 fun main(args: Array<String>) {
-    // Check for daemon mode
-    if (args.isNotEmpty() && args[0] == "--daemon") {
-        DaemonMode().run()
-        return
-    }
-
     // Check for MCP server mode
     if (args.isNotEmpty() && args[0] == "--mcp") {
         McpMode().run()
