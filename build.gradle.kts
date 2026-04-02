@@ -90,6 +90,11 @@ tasks.jacocoTestReport {
     }
 }
 
+// The plain jar (classes-only, no deps) is useless — only the shadow fat jar is distributed.
+tasks.jar {
+    enabled = false
+}
+
 tasks.shadowJar {
     archiveBaseName.set("smali-lsp")
     archiveClassifier.set("all")
