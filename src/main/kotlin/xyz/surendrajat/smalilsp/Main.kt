@@ -28,13 +28,36 @@ import kotlinx.coroutines.runBlocking
  *   java -jar smali-lsp-all.jar       (LSP mode - VS Code extension)
  *   java -jar smali-lsp-all.jar --mcp (MCP server - AI agent integration)
  */
-fun main(args: Array<String>) {
-    // Check for MCP server mode
-    if (args.isNotEmpty() && args[0] == "--mcp") {
-        McpMode().run()
-        return
+data class VersionInfo(val version: String, val commit: String, val buildTime: String)
+
+private fun loadVersionInfo(): VersionInfo {
+    val props = java.util.Properties()
+    val stream = SmaliLanguageServer::class.java.getResourceAsStream("/version.properties")
+    if (stream != null) {
+        stream.use { props.load(it) }
     }
-    
+
+    val version = props.getProperty("version", "unknown")
+    val commit = props.getProperty("commit", "unknown")
+    val buildTime = props.getProperty("buildTime", "unknown")
+    return VersionInfo(version, commit, buildTime)
+}
+
+fun main(args: Array<String>) {
+    if (args.isNotEmpty()) {
+        when (args[0]) {
+            "--version" -> {
+                val info = loadVersionInfo()
+                println("smali-lsp v${info.version}+${info.commit} (built ${info.buildTime})")
+                return
+            }
+            "--mcp" -> {
+                McpMode().run()
+                return
+            }
+        }
+    }
+
     // Configure Java Util Logging to use our properties file
     // This prevents LSP4J from logging to stdout which corrupts LSP protocol
     System.setProperty("java.util.logging.config.file", 

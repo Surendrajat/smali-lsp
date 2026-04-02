@@ -1,3 +1,6 @@
+import java.io.ByteArrayOutputStream
+import java.time.Instant
+
 plugins {
     kotlin("jvm") version "2.3.20"
     kotlin("plugin.serialization") version "2.3.20"
@@ -92,6 +95,41 @@ tasks.jacocoTestReport {
         xml.required.set(true)
         html.required.set(true)
     }
+}
+
+// Generate version metadata resource from project version + git commit
+val versionPropertiesDir = layout.buildDirectory.dir("generated-resources/version")
+val versionPropertiesFile = versionPropertiesDir.map { it.file("version.properties") }
+
+tasks.register("generateVersionProperties") {
+    outputs.file(versionPropertiesFile)
+    doLast {
+        val commitHash = try {
+            val stdout = ByteArrayOutputStream()
+            exec {
+                commandLine("git", "rev-parse", "--short", "HEAD")
+                standardOutput = stdout
+                isIgnoreExitValue = true
+            }
+            stdout.toString().trim().ifEmpty { "unknown" }
+        } catch (_: Exception) {
+            "unknown"
+        }
+
+        val buildTime = Instant.now().toString()
+        val file = versionPropertiesFile.get().asFile
+
+        file.parentFile.mkdirs()
+        file.writeText("""version=${project.version}
+commit=$commitHash
+buildTime=$buildTime
+""")
+    }
+}
+
+tasks.processResources {
+    dependsOn("generateVersionProperties")
+    from(versionPropertiesDir)
 }
 
 // The plain jar (classes-only, no deps) is useless — only the shadow fat jar is distributed.
