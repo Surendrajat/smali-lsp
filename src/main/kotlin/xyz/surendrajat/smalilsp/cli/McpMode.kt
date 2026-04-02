@@ -129,6 +129,7 @@ class McpMode {
             referenceProvider = null
             diagnosticProvider = null
             workspaceSymbolProvider = null
+            xyz.surendrajat.smalilsp.util.StringPool.clear()
 
             val newIndex = WorkspaceIndex()
             val scanner = WorkspaceScanner(newIndex)
@@ -143,7 +144,7 @@ class McpMode {
 
             indexedDirectory = dir.absolutePath
             val duration = System.currentTimeMillis() - startTime
-            val stats = index!!.getStats()
+            val stats = newIndex.getStats()
 
             toolResult(
                 "Successfully indexed $directory\n" +
