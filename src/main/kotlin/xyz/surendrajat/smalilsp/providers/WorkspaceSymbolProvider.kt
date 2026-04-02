@@ -49,9 +49,12 @@ class WorkspaceSymbolProvider(
         val matches = mutableListOf<Pair<SymbolInformation, Int>>()
         
         allFiles.forEach { file ->
-            // Add class symbol - match on simple class name, not full path
+            // Add class symbol - match on simple name OR full package path.
+            // e.g. query "billingclient" should match "Lcom/android/billingclient/BillingClient;"
             val simpleName = extractSimpleName(file.classDefinition.name)
+            val fullPath = file.classDefinition.name.removePrefix("L").removeSuffix(";").lowercase()
             val classMatch = matchSymbol(simpleName, normalizedQuery)
+                ?: if (fullPath.contains(normalizedQuery)) 50 else null
             if (classMatch != null) {
                 matches.add(
                     createClassSymbol(file) to classMatch

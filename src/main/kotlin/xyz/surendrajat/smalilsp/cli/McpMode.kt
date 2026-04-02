@@ -117,15 +117,29 @@ class McpMode {
             logger.info("Indexing: ${dir.absolutePath}")
             val startTime = System.currentTimeMillis()
 
-            index = WorkspaceIndex()
-            val scanner = WorkspaceScanner(index!!)
+            // Drop all references to the old index BEFORE building the new one.
+            // For large projects (100K+ files) both old and new indexes would
+            // otherwise coexist in heap during the scan, causing OOM.
+            // Note: no System.gc() here — forcing a full GC before a 100K-file scan
+            // pegs all CPUs with GC threads and makes the problem worse, not better.
+            // Let the JVM's G1GC handle collection incrementally during the scan.
+            index = null
+            definitionProvider = null
+            hoverProvider = null
+            referenceProvider = null
+            diagnosticProvider = null
+            workspaceSymbolProvider = null
+
+            val newIndex = WorkspaceIndex()
+            val scanner = WorkspaceScanner(newIndex)
             val result = scanner.scanDirectory(dir) { _, _ -> }
 
-            definitionProvider = DefinitionProvider(index!!)
-            hoverProvider = HoverProvider(index!!)
-            referenceProvider = ReferenceProvider(index!!)
-            diagnosticProvider = DiagnosticProvider(parser, index!!)
-            workspaceSymbolProvider = WorkspaceSymbolProvider(index!!)
+            index = newIndex
+            definitionProvider = DefinitionProvider(newIndex)
+            hoverProvider = HoverProvider(newIndex)
+            referenceProvider = ReferenceProvider(newIndex)
+            diagnosticProvider = DiagnosticProvider(parser, newIndex)
+            workspaceSymbolProvider = WorkspaceSymbolProvider(newIndex)
 
             indexedDirectory = dir.absolutePath
             val duration = System.currentTimeMillis() - startTime
@@ -347,7 +361,11 @@ class McpMode {
                 "kind" to "class",
                 "name" to file.classDefinition.name,
                 "superClass" to file.classDefinition.superClass,
-                "interfaces" to file.classDefinition.interfaces
+                "interfaces" to file.classDefinition.interfaces,
+                "range" to mapOf(
+                    "start" to mapOf("line" to file.classDefinition.range.start.line, "character" to file.classDefinition.range.start.character),
+                    "end" to mapOf("line" to file.classDefinition.range.end.line, "character" to file.classDefinition.range.end.character)
+                )
             ))
 
             file.methods.forEach { method ->
@@ -355,7 +373,11 @@ class McpMode {
                     "kind" to "method",
                     "name" to method.name,
                     "descriptor" to method.descriptor,
-                    "className" to file.classDefinition.name
+                    "className" to file.classDefinition.name,
+                    "range" to mapOf(
+                        "start" to mapOf("line" to method.range.start.line, "character" to method.range.start.character),
+                        "end" to mapOf("line" to method.range.end.line, "character" to method.range.end.character)
+                    )
                 ))
             }
 
@@ -364,7 +386,11 @@ class McpMode {
                     "kind" to "field",
                     "name" to field.name,
                     "type" to field.type,
-                    "className" to file.classDefinition.name
+                    "className" to file.classDefinition.name,
+                    "range" to mapOf(
+                        "start" to mapOf("line" to field.range.start.line, "character" to field.range.start.character),
+                        "end" to mapOf("line" to field.range.end.line, "character" to field.range.end.character)
+                    )
                 ))
             }
 
