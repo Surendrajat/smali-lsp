@@ -217,11 +217,9 @@ class ErrorRecoveryTest {
         
         try {
             val file = workspace.parseFile("test/Long.smali")
-            // Should parse (or return null)
-            assertTrue(file.classDefinition.name.isNotEmpty() || true, "Should handle long names")
-        } catch (e: Exception) {
-            // If it throws, at least verify it's a reasonable exception
-            assertTrue(e.message != null, "Exception should have message")
+            // Should parse successfully and preserve the full class name
+            assertTrue(file.classDefinition.name.isNotEmpty(), "Should parse long class name")
+            assertEquals(longName, file.classDefinition.name, "Should preserve full long class name")
         } finally {
             workspace.cleanup()
         }
