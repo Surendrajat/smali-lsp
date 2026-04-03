@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.indexer.WorkspaceScanner
 import xyz.surendrajat.smalilsp.parser.SmaliParser
+import xyz.surendrajat.smalilsp.providers.CallHierarchyProvider
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import xyz.surendrajat.smalilsp.providers.DiagnosticProvider
 import xyz.surendrajat.smalilsp.providers.HoverProvider
@@ -66,6 +67,7 @@ class McpMode {
     private var referenceProvider: ReferenceProvider? = null
     private var diagnosticProvider: DiagnosticProvider? = null
     private var workspaceSymbolProvider: WorkspaceSymbolProvider? = null
+    private var callHierarchyProvider: CallHierarchyProvider? = null
 
     fun run() {
         val server = Server(
@@ -129,6 +131,7 @@ class McpMode {
             referenceProvider = null
             diagnosticProvider = null
             workspaceSymbolProvider = null
+            callHierarchyProvider = null
             xyz.surendrajat.smalilsp.util.StringPool.clear()
 
             val newIndex = WorkspaceIndex()
@@ -141,6 +144,7 @@ class McpMode {
             referenceProvider = ReferenceProvider(newIndex)
             diagnosticProvider = DiagnosticProvider(parser, newIndex)
             workspaceSymbolProvider = WorkspaceSymbolProvider(newIndex)
+            callHierarchyProvider = CallHierarchyProvider(newIndex)
 
             indexedDirectory = dir.absolutePath
             val duration = System.currentTimeMillis() - startTime
@@ -150,7 +154,7 @@ class McpMode {
                 "Successfully indexed $directory\n" +
                         "Files: ${result.filesSucceeded}\n" +
                         "Time: ${duration}ms\n" +
-                        "Classes: ${stats.classes}, Methods: ${stats.methods}, Fields: ${stats.fields}\n\n" +
+                        "Classes: ${stats.classes}, Methods: ${stats.methods}, Fields: ${stats.fields}, Strings: ${stats.strings}\n\n" +
                         "Index is now in memory. Subsequent queries will be fast (<1s)."
             )
         }
@@ -244,7 +248,8 @@ class McpMode {
                 "indexedDirectory" to indexedDirectory,
                 "classes" to stats.classes,
                 "methods" to stats.methods,
-                "fields" to stats.fields
+                "fields" to stats.fields,
+                "strings" to stats.strings
             )))
         }
 
@@ -396,6 +401,220 @@ class McpMode {
             }
 
             toolResult(gson.toJson(mapOf("uri" to uri, "symbols" to symbols, "count" to symbols.size)))
+        }
+
+        // --- String Search ---
+
+        server.addTool(
+            name = "smali_search_strings",
+            description = "Search for string literals (const-string instructions) across all indexed smali files. " +
+                    "Useful for finding URLs, API keys, error messages, hardcoded paths, etc.",
+            inputSchema = toolSchema(
+                properties = buildJsonObject {
+                    putJsonObject("query") {
+                        put("type", "string")
+                        put("description", "Substring to search for in string literals (case-insensitive)")
+                    }
+                    putJsonObject("max_results") {
+                        put("type", "number")
+                        put("description", "Maximum results to return (default: 100)")
+                    }
+                },
+                required = listOf("query")
+            )
+        ) { request ->
+            requireIndex() ?: return@addTool toolError("No index loaded. Call smali_index first.")
+
+            val query = request.arguments?.get("query")?.jsonPrimitive?.content
+                ?: return@addTool toolError("Missing required argument: 'query'")
+            val maxResults = request.arguments?.get("max_results")?.jsonPrimitive?.int ?: 100
+
+            val results = index!!.searchStrings(query, maxResults).map { result ->
+                mapOf(
+                    "value" to result.value,
+                    "uri" to result.location.uri,
+                    "file" to result.location.uri.substringAfterLast('/'),
+                    "line" to (result.location.range.start.line + 1)
+                )
+            }
+            toolResult(gson.toJson(mapOf("query" to query, "results" to results, "count" to results.size)))
+        }
+
+        // --- Call Hierarchy ---
+
+        server.addTool(
+            name = "smali_call_graph",
+            description = "Get call hierarchy (callers and callees) for a method. " +
+                    "Specify a class and method to find who calls it (incoming) and what it calls (outgoing).",
+            inputSchema = toolSchema(
+                properties = buildJsonObject {
+                    putJsonObject("class_name") {
+                        put("type", "string")
+                        put("description", "Fully qualified class name (e.g., 'Lcom/example/MyClass;')")
+                    }
+                    putJsonObject("method_name") {
+                        put("type", "string")
+                        put("description", "Method name (e.g., 'onCreate')")
+                    }
+                    putJsonObject("descriptor") {
+                        put("type", "string")
+                        put("description", "Method descriptor (e.g., '(Landroid/os/Bundle;)V'). If omitted, matches first method with given name.")
+                    }
+                    putJsonObject("direction") {
+                        put("type", "string")
+                        put("description", "Direction: 'incoming' (callers), 'outgoing' (callees), or 'both' (default: 'both')")
+                    }
+                },
+                required = listOf("class_name", "method_name")
+            )
+        ) { request ->
+            if (callHierarchyProvider == null) return@addTool toolError("No index loaded. Call smali_index first.")
+
+            val className = request.arguments?.get("class_name")?.jsonPrimitive?.content
+                ?: return@addTool toolError("Missing required argument: 'class_name'")
+            val methodName = request.arguments?.get("method_name")?.jsonPrimitive?.content
+                ?: return@addTool toolError("Missing required argument: 'method_name'")
+            val descriptor = request.arguments?.get("descriptor")?.jsonPrimitive?.content
+            val direction = request.arguments?.get("direction")?.jsonPrimitive?.content ?: "both"
+
+            val classFile = index!!.findClass(className)
+                ?: return@addTool toolError("Class not found: $className")
+
+            val method = if (descriptor != null) {
+                classFile.methods.find { it.name == methodName && it.descriptor == descriptor }
+            } else {
+                classFile.methods.find { it.name == methodName }
+            } ?: return@addTool toolError("Method not found: $className->$methodName${descriptor ?: ""}")
+
+            val item = org.eclipse.lsp4j.CallHierarchyItem().apply {
+                name = "${method.name}${method.descriptor}"
+                kind = org.eclipse.lsp4j.SymbolKind.Method
+                uri = classFile.uri
+                range = method.range
+                selectionRange = method.range
+                detail = className
+            }
+
+            val result = mutableMapOf<String, Any>(
+                "class" to className,
+                "method" to "${method.name}${method.descriptor}"
+            )
+
+            if (direction == "incoming" || direction == "both") {
+                val incoming = callHierarchyProvider!!.incomingCalls(item)
+                result["incoming_calls"] = incoming.map { call ->
+                    mapOf(
+                        "from_class" to (call.from.detail ?: "unknown"),
+                        "from_method" to call.from.name,
+                        "uri" to call.from.uri,
+                        "call_sites" to call.fromRanges.size
+                    )
+                }
+                result["incoming_count"] = incoming.size
+            }
+
+            if (direction == "outgoing" || direction == "both") {
+                val outgoing = callHierarchyProvider!!.outgoingCalls(item)
+                result["outgoing_calls"] = outgoing.map { call ->
+                    mapOf(
+                        "to_class" to (call.to.detail ?: "unknown"),
+                        "to_method" to call.to.name,
+                        "uri" to call.to.uri,
+                        "call_sites" to call.fromRanges.size
+                    )
+                }
+                result["outgoing_count"] = outgoing.size
+            }
+
+            toolResult(gson.toJson(result))
+        }
+
+        // --- Xref Summary ---
+
+        server.addTool(
+            name = "smali_xref_summary",
+            description = "Get a cross-reference summary for a class: who extends it, who implements it, " +
+                    "who calls its methods, who accesses its fields. Provides a high-level usage overview.",
+            inputSchema = toolSchema(
+                properties = buildJsonObject {
+                    putJsonObject("class_name") {
+                        put("type", "string")
+                        put("description", "Fully qualified class name (e.g., 'Lcom/example/MyClass;')")
+                    }
+                },
+                required = listOf("class_name")
+            )
+        ) { request ->
+            requireIndex() ?: return@addTool toolError("No index loaded. Call smali_index first.")
+
+            val className = request.arguments?.get("class_name")?.jsonPrimitive?.content
+                ?: return@addTool toolError("Missing required argument: 'class_name'")
+
+            val classFile = index!!.findClass(className)
+
+            // Find subclasses and implementors
+            val subclasses = mutableListOf<String>()
+            val implementors = mutableListOf<String>()
+            for (file in index!!.getAllFiles()) {
+                if (file.classDefinition.superClass == className) {
+                    subclasses.add(file.classDefinition.name)
+                }
+                if (className in file.classDefinition.interfaces) {
+                    implementors.add(file.classDefinition.name)
+                }
+            }
+
+            // Find all method callers (across all methods in this class)
+            val methodCallers = mutableMapOf<String, MutableSet<String>>()
+            val fieldAccessors = mutableMapOf<String, MutableSet<String>>()
+            for (file in index!!.getAllFiles()) {
+                for (method in file.methods) {
+                    for (instr in method.instructions) {
+                        when (instr) {
+                            is xyz.surendrajat.smalilsp.core.InvokeInstruction -> {
+                                if (instr.className == className) {
+                                    val key = "${instr.methodName}${instr.descriptor}"
+                                    methodCallers.computeIfAbsent(key) { mutableSetOf() }
+                                        .add(file.classDefinition.name)
+                                }
+                            }
+                            is xyz.surendrajat.smalilsp.core.FieldAccessInstruction -> {
+                                if (instr.className == className) {
+                                    fieldAccessors.computeIfAbsent(instr.fieldName) { mutableSetOf() }
+                                        .add(file.classDefinition.name)
+                                }
+                            }
+                            else -> {}
+                        }
+                    }
+                }
+            }
+
+            // Find class usages (type references: new-instance, check-cast, etc.)
+            val typeUsages = index!!.findClassUsages(className)
+
+            val result = mapOf(
+                "class" to className,
+                "defined" to (classFile != null),
+                "subclasses" to subclasses,
+                "implementors" to implementors,
+                "method_callers" to methodCallers.map { (method, callers) ->
+                    mapOf("method" to method, "callers" to callers.toList(), "count" to callers.size)
+                },
+                "field_accessors" to fieldAccessors.map { (field, accessors) ->
+                    mapOf("field" to field, "accessors" to accessors.toList(), "count" to accessors.size)
+                },
+                "type_references" to typeUsages.toList(),
+                "summary" to mapOf(
+                    "subclass_count" to subclasses.size,
+                    "implementor_count" to implementors.size,
+                    "method_caller_count" to methodCallers.values.sumOf { it.size },
+                    "field_accessor_count" to fieldAccessors.values.sumOf { it.size },
+                    "type_reference_count" to typeUsages.size
+                )
+            )
+
+            toolResult(gson.toJson(result))
         }
     }
 
