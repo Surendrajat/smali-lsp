@@ -5,6 +5,7 @@ import xyz.surendrajat.smalilsp.core.*
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.resolver.TypeResolver
 import xyz.surendrajat.smalilsp.util.ClassUtils
+import xyz.surendrajat.smalilsp.util.DescriptorParser
 import xyz.surendrajat.smalilsp.util.InstructionSymbolExtractor
 import java.io.File
 import java.net.URI
@@ -630,82 +631,16 @@ class HoverProvider(
             return null
         }
         
-        // Calculate position within descriptor
+        // Calculate position within descriptor and find type at that offset
         val posInDescriptor = cursorChar - descriptorIndex
-        
-        // Parse descriptor to find type at position
-        // Descriptor can be:
-        // - Method: "(IJZ)V" - parameters in parens, return type after
-        // - Field: "I" or "[I" or "Lclass;" - just the type
-        
-        var i = 0
-        while (i < descriptor.length) {
-            when (descriptor[i]) {
-                '[' -> {
-                    // Array - extract full array type with brackets
-                    val arrayStart = i
-                    var arrayBrackets = 0
-                    while (i < descriptor.length && descriptor[i] == '[') {
-                        arrayBrackets++
-                        i++
-                    }
-                    
-                    if (i < descriptor.length) {
-                        when (descriptor[i]) {
-                            'L' -> {
-                                // Object array [Lclass;
-                                val semicolonIndex = descriptor.indexOf(';', i)
-                                if (semicolonIndex != -1) {
-                                    i = semicolonIndex + 1
-                                    // Check if cursor is on this array type
-                                    if (posInDescriptor >= arrayStart && posInDescriptor < i) {
-                                        val arrayType = descriptor.substring(arrayStart, i)
-                                        // Check if it's a primitive array (shouldn't happen with L but defensive)
-                                        return null // Object array, not primitive
-                                    }
-                                }
-                            }
-                            in "IJZBCSFDV" -> {
-                                // Primitive array [I, [[J, etc
-                                i++
-                                if (posInDescriptor >= arrayStart && posInDescriptor < i) {
-                                    val primitiveArray = descriptor.substring(arrayStart, i)
-                                    return hoverForPrimitiveType(primitiveArray)
-                                }
-                            }
-                        }
-                    }
-                }
-                'L' -> {
-                    // Object type Lclass;
-                    val semicolonIndex = descriptor.indexOf(';', i)
-                    if (semicolonIndex != -1) {
-                        i = semicolonIndex + 1
-                        // Object type, not primitive
-                    } else {
-                        i++
-                    }
-                }
-                in "IJZBCSFDV" -> {
-                    // Primitive type
-                    if (posInDescriptor == i) {
-                        val primitiveType = descriptor[i].toString()
-                        return hoverForPrimitiveType(primitiveType)
-                    }
-                    i++
-                }
-                '(', ')', ' ' -> {
-                    // Delimiter
-                    i++
-                }
-                else -> {
-                    // Unknown character, skip
-                    i++
-                }
-            }
+        val span = DescriptorParser.typeAtOffset(descriptor, posInDescriptor) ?: return null
+
+        // Only return hover for primitive types (object types handled elsewhere)
+        return if (span.isPrimitive) {
+            hoverForPrimitiveType(span.type)
+        } else {
+            null
         }
-        
-        return null
     }
     
     /**

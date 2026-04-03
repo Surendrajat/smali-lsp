@@ -7,6 +7,7 @@ import org.eclipse.lsp4j.Range
 import xyz.surendrajat.smalilsp.core.*
 import xyz.surendrajat.smalilsp.parser.generated.SmaliParserBaseListener
 import xyz.surendrajat.smalilsp.parser.generated.SmaliParser as GeneratedSmaliParser
+import xyz.surendrajat.smalilsp.util.DescriptorParser
 import xyz.surendrajat.smalilsp.util.StringPool
 
 /**
@@ -143,76 +144,14 @@ class ASTBuilder(
     
     /**
      * Parse parameter types from descriptor string.
-     * This is a simplified parser - just tries to extract recognizable types.
-     * 
-     * EDGE CASE FIXES:
-     * - Handles truncated object types (L without ;)
-     * - Handles truncated arrays ([ at end)
-     * - Handles invalid characters gracefully
+     * Delegates to DescriptorParser for the core parsing logic,
+     * then interns strings via StringPool for memory efficiency.
      */
     private fun parseParameters(paramStr: String): List<Parameter> {
         if (paramStr.isEmpty()) return emptyList()
-        
-        val params = mutableListOf<Parameter>()
-        var i = 0
-        while (i < paramStr.length) {
-            when (paramStr[i]) {
-                'Z', 'B', 'C', 'S', 'I', 'J', 'F', 'D', 'V' -> {
-                    // Primitive type (intern for memory efficiency)
-                    params.add(Parameter(StringPool.intern(paramStr[i].toString()), null))
-                    i++
-                }
-                'L' -> {
-                    // Object type - find semicolon
-                    val semi = paramStr.indexOf(';', i)
-                    if (semi > 0) {
-                        params.add(Parameter(StringPool.intern(paramStr.substring(i, semi + 1)), null))
-                        i = semi + 1
-                    } else {
-                        // EDGE CASE: Truncated object type (missing semicolon)
-                        // Skip the L and continue
-                        i++
-                    }
-                }
-                '[' -> {
-                    // Array - continue to get element type
-                    val start = i
-                    i++
-                    // Skip all array dimensions
-                    while (i < paramStr.length && paramStr[i] == '[') i++
-                    
-                    // EDGE CASE: Check bounds before accessing element type
-                    if (i >= paramStr.length) {
-                        // Truncated array descriptor - stop here
-                        break
-                    }
-                    
-                    // Get element type
-                    if (paramStr[i] == 'L') {
-                        val semi = paramStr.indexOf(';', i)
-                        if (semi > 0) {
-                            params.add(Parameter(StringPool.intern(paramStr.substring(start, semi + 1)), null))
-                            i = semi + 1
-                        } else {
-                            // Truncated object type in array - skip
-                            i++
-                        }
-                    } else if (paramStr[i] in "ZBCSIJFDV") {
-                        // Valid primitive array
-                        params.add(Parameter(StringPool.intern(paramStr.substring(start, i + 1)), null))
-                        i++
-                    } else {
-                        // Invalid element type - skip
-                        i++
-                    }
-                }
-                else -> {
-                    // EDGE CASE: Invalid character - skip it
-                    i++
-                }
-            }
+        return DescriptorParser.parseTypeSequence(paramStr).map { span ->
+            Parameter(StringPool.intern(span.type), null)
         }
-        return params
     }
     
     /**

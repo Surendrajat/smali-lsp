@@ -1,5 +1,7 @@
 package xyz.surendrajat.smalilsp.resolver
 
+import xyz.surendrajat.smalilsp.util.DescriptorParser
+
 /**
  * Resolves type descriptors to class names.
  * 
@@ -54,59 +56,8 @@ object TypeResolver {
      * @return Set of all class names referenced in the descriptor
      */
     fun extractClassNames(descriptor: String): Set<String> {
-        val classes = mutableSetOf<String>()
-        
-        if (descriptor.isEmpty()) return classes
-        
-        // Find the opening parenthesis
-        val openParen = descriptor.indexOf('(')
-        if (openParen < 0) return classes
-        
-        // Find the closing parenthesis
-        val closeParen = descriptor.indexOf(')', openParen)
-        if (closeParen < 0) return classes
-        
-        // Extract parameter types
-        val params = descriptor.substring(openParen + 1, closeParen)
-        extractClassNamesFromTypeSequence(params, classes)
-        
-        // Extract return type
-        val returnType = descriptor.substring(closeParen + 1)
-        extractClassName(returnType)?.let { classes.add(it) }
-        
-        return classes
-    }
-    
-    /**
-     * Extract class names from a sequence of type descriptors (no separators).
-     * 
-     * Example: "ILjava/lang/String;[Ljava/lang/Integer;" -> [String, Integer]
-     */
-    private fun extractClassNamesFromTypeSequence(sequence: String, output: MutableSet<String>) {
-        var i = 0
-        while (i < sequence.length) {
-            when (sequence[i]) {
-                'Z', 'B', 'C', 'S', 'I', 'J', 'F', 'D', 'V' -> {
-                    // Primitive, skip
-                    i++
-                }
-                'L' -> {
-                    // Object type - find semicolon
-                    val semi = sequence.indexOf(';', i)
-                    if (semi > i) {
-                        output.add(sequence.substring(i, semi + 1))
-                        i = semi + 1
-                    } else {
-                        i++
-                    }
-                }
-                '[' -> {
-                    // Array - continue to get element type
-                    i++
-                }
-                else -> i++
-            }
-        }
+        if (descriptor.isEmpty()) return emptySet()
+        return DescriptorParser.extractClassNames(descriptor)
     }
     
     /**

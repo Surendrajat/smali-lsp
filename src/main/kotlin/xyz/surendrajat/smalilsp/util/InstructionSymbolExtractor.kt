@@ -305,75 +305,18 @@ object InstructionSymbolExtractor {
      * @return List of type descriptors in order of appearance
      */
     private fun extractTypesFromDescriptor(descriptor: String): List<String> {
-        val types = mutableListOf<String>()
-        var i = 0
-        
-        while (i < descriptor.length) {
-            when (descriptor[i]) {
-                'L' -> {
-                    // Class type: Lpath/to/Class;
-                    val end = descriptor.indexOf(';', startIndex = i)
-                    if (end >= 0) {
-                        types.add(descriptor.substring(i, end + 1))
-                        i = end + 1
-                    } else {
-                        i++
-                    }
-                }
-                '[' -> {
-                    // Array type: [Lpath/to/Class; or [I or [[I
-                    // Count array dimensions
-                    val arrayStart = i
-                    var arrayEnd = i
-                    while (arrayEnd < descriptor.length && descriptor[arrayEnd] == '[') {
-                        arrayEnd++
-                    }
-                    
-                    if (arrayEnd < descriptor.length) {
-                        when (descriptor[arrayEnd]) {
-                            'L' -> {
-                                // Array of objects: [Lpath/to/Class; or [[Ljava/lang/String;
-                                // For object arrays, extract ELEMENT TYPE only (not array)
-                                // This allows navigation to work (go-to-definition on String in [Ljava/lang/String;)
-                                // For hover, HoverProvider will handle showing array info
-                                val semicolon = descriptor.indexOf(';', startIndex = arrayEnd)
-                                if (semicolon >= 0) {
-                                    types.add(descriptor.substring(arrayEnd, semicolon + 1)) // Element type only
-                                    i = semicolon + 1
-                                } else {
-                                    i = arrayEnd + 1
-                                }
-                            }
-                            in "IJZBCSFDV" -> {
-                                // Primitive array: [I, [[J, etc
-                                // For primitive arrays, extract FULL type including brackets
-                                // (can't navigate to primitive, so hover needs full type)
-                                types.add(descriptor.substring(arrayStart, arrayEnd + 1))
-                                i = arrayEnd + 1
-                            }
-                            else -> {
-                                // Unknown character after brackets
-                                i = arrayEnd + 1
-                            }
-                        }
-                    } else {
-                        // Brackets at end of string (malformed)
-                        i = arrayEnd
-                    }
-                }
-                in "IJZBCSFDV" -> {
-                    // Primitive type: I (int), J (long), Z (boolean), etc
-                    // DON'T extract - primitives are not navigable
-                    // They'll be handled by the descriptor fallback logic
-                    i++
-                }
-                else -> {
-                    // Other character: (, ), or unknown - skip
-                    i++
+        // For object arrays, extract element class name (for navigation).
+        // For primitive arrays, extract the full array type (for hover).
+        // Skip standalone primitives (not navigable).
+        return DescriptorParser.parseTypeSequence(descriptor)
+            .filter { !it.isPrimitive || it.isArray }
+            .map { span ->
+                if (span.isArray && span.className != null) {
+                    // Object array → element type only (navigation goes to the class)
+                    span.className
+                } else {
+                    span.type
                 }
             }
-        }
-        
-        return types
     }
 }
