@@ -6,6 +6,7 @@ import org.eclipse.lsp4j.services.LanguageClient
 import org.eclipse.lsp4j.services.TextDocumentService
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.parser.SmaliParser
+import xyz.surendrajat.smalilsp.providers.CallHierarchyProvider
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import xyz.surendrajat.smalilsp.providers.DiagnosticProvider
 import xyz.surendrajat.smalilsp.providers.HoverProvider
@@ -31,7 +32,8 @@ class SmaliTextDocumentService(
     private val index: WorkspaceIndex,
     private val definitionProvider: DefinitionProvider,
     private val hoverProvider: HoverProvider,
-    private val referenceProvider: ReferenceProvider
+    private val referenceProvider: ReferenceProvider,
+    private val callHierarchyProvider: CallHierarchyProvider
 ) : TextDocumentService {
     
     private val logger = LoggerFactory.getLogger(SmaliTextDocumentService::class.java)
@@ -245,6 +247,51 @@ class SmaliTextDocumentService(
                 symbols
             } catch (e: Exception) {
                 logger.error("Error in documentSymbol for $uri", e)
+                mutableListOf()
+            }
+        }
+    }
+
+    /**
+     * Prepare call hierarchy at cursor position.
+     */
+    override fun prepareCallHierarchy(params: CallHierarchyPrepareParams): CompletableFuture<MutableList<CallHierarchyItem>> {
+        val uri = params.textDocument.uri
+        val position = params.position
+
+        return CompletableFuture.supplyAsync {
+            try {
+                callHierarchyProvider.prepare(uri, position).toMutableList()
+            } catch (e: Exception) {
+                logger.error("Error in prepareCallHierarchy for $uri", e)
+                mutableListOf()
+            }
+        }
+    }
+
+    /**
+     * Get incoming calls (callers) for a call hierarchy item.
+     */
+    override fun callHierarchyIncomingCalls(params: CallHierarchyIncomingCallsParams): CompletableFuture<MutableList<CallHierarchyIncomingCall>> {
+        return CompletableFuture.supplyAsync {
+            try {
+                callHierarchyProvider.incomingCalls(params.item).toMutableList()
+            } catch (e: Exception) {
+                logger.error("Error in callHierarchyIncomingCalls", e)
+                mutableListOf()
+            }
+        }
+    }
+
+    /**
+     * Get outgoing calls (callees) for a call hierarchy item.
+     */
+    override fun callHierarchyOutgoingCalls(params: CallHierarchyOutgoingCallsParams): CompletableFuture<MutableList<CallHierarchyOutgoingCall>> {
+        return CompletableFuture.supplyAsync {
+            try {
+                callHierarchyProvider.outgoingCalls(params.item).toMutableList()
+            } catch (e: Exception) {
+                logger.error("Error in callHierarchyOutgoingCalls", e)
                 mutableListOf()
             }
         }

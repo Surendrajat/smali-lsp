@@ -6,6 +6,7 @@ import org.eclipse.lsp4j.launch.LSPLauncher
 import org.eclipse.lsp4j.services.*
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.indexer.WorkspaceScanner
+import xyz.surendrajat.smalilsp.providers.CallHierarchyProvider
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import xyz.surendrajat.smalilsp.providers.HoverProvider
 import xyz.surendrajat.smalilsp.providers.ReferenceProvider
@@ -87,13 +88,15 @@ class SmaliLanguageServer : LanguageServer {
     private val definitionProvider = DefinitionProvider(index)
     private val hoverProvider = HoverProvider(index)
     private val referenceProvider = ReferenceProvider(index)
+    private val callHierarchyProvider = CallHierarchyProvider(index)
     
     // Text document service
     private val textDocumentService = SmaliTextDocumentService(
         index,
         definitionProvider,
         hoverProvider,
-        referenceProvider
+        referenceProvider,
+        callHierarchyProvider
     )
     
     // Workspace service
@@ -163,6 +166,7 @@ class SmaliLanguageServer : LanguageServer {
                     logger.info("  Classes: ${stats.classes}")
                     logger.info("  Methods: ${stats.methods}")
                     logger.info("  Fields: ${stats.fields}")
+                    logger.info("  Strings: ${stats.strings}")
                     
                     if (result.filesFailed > 0) {
                         logger.warn("  Failed: ${result.filesFailed} files")
@@ -197,6 +201,9 @@ class SmaliLanguageServer : LanguageServer {
         
         // Workspace symbols
         capabilities.setWorkspaceSymbolProvider(true)
+
+        // Call hierarchy
+        capabilities.setCallHierarchyProvider(true)
         
         val serverInfo = ServerInfo("Smali Language Server", "1.0.0")
         return InitializeResult(capabilities, serverInfo)
