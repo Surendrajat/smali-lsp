@@ -205,6 +205,9 @@ class ReferenceProvider(
                         is JumpInstruction -> {
                             // JumpInstructions don't reference classes - skip
                         }
+                        is ConstStringInstruction -> {
+                            // String literals don't reference classes
+                        }
                     }
                 }
             }

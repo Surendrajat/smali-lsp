@@ -204,6 +204,16 @@ data class JumpInstruction(
 ) : Instruction(range)
 
 /**
+ * String constant: const-string, const-string/jumbo
+ */
+data class ConstStringInstruction(
+    val opcode: String,  // "const-string" or "const-string/jumbo"
+    val value: String,   // The string literal value (without surrounding quotes)
+    val register: String,
+    override val range: Range
+) : Instruction(range)
+
+/**
  * Label definition at a specific position in a method.
  */
 data class LabelDefinition(

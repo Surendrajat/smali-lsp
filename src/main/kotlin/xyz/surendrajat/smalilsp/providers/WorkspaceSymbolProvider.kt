@@ -95,6 +95,23 @@ class WorkspaceSymbolProvider(
                 }
             }
         }
+
+        // Search string literals (only when query is 2+ chars to avoid noise)
+        if (normalizedQuery.length >= 2) {
+            val stringResults = index.searchStrings(normalizedQuery, 100)
+            stringResults.forEach { result ->
+                val truncated = if (result.value.length > 60) result.value.take(60) + "..." else result.value
+                val className = index.findClassNameByUri(result.location.uri) ?: "unknown"
+                matches.add(
+                    SymbolInformation(
+                        "\"$truncated\"",
+                        SymbolKind.String,
+                        result.location,
+                        className
+                    ) to 50  // Lower than class/method matches
+                )
+            }
+        }
         
         // Sort by match score (higher is better), then by name
         return matches

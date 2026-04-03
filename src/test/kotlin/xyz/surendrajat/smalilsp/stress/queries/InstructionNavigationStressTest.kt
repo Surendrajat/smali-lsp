@@ -200,6 +200,9 @@ class InstructionNavigationStressTest {
                         // JumpInstructions reference labels, not classes - skip
                         "jump-${instruction.opcode}"
                     }
+                    is ConstStringInstruction -> {
+                        "string-${instruction.opcode}"
+                    }
                 }
                 
                 val targetClass = when (instruction) {
@@ -207,6 +210,7 @@ class InstructionNavigationStressTest {
                     is FieldAccessInstruction -> instruction.className
                     is TypeInstruction -> instruction.className
                     is JumpInstruction -> "" // JumpInstructions reference labels, not classes
+                    is ConstStringInstruction -> "" // String literals don't reference classes
                 }
                 
                 results.add(NavigationResult(

@@ -1,6 +1,7 @@
 package xyz.surendrajat.smalilsp.index
 
 import xyz.surendrajat.smalilsp.core.ClassDefinition
+import xyz.surendrajat.smalilsp.core.ConstStringInstruction
 import xyz.surendrajat.smalilsp.core.FieldDefinition
 import xyz.surendrajat.smalilsp.core.MethodDefinition
 import xyz.surendrajat.smalilsp.core.SmaliFile
@@ -38,6 +39,9 @@ class WorkspaceIndex {
     
     // Reverse index: class name → Set<URIs that reference it>
     private val classUsages = ConcurrentHashMap<String, MutableSet<String>>()
+
+    // String literal index: string value → Set<Location>
+    private val stringIndex = ConcurrentHashMap<String, MutableSet<Location>>()
     
     /**
      * Index a smali file. Thread-safe.
@@ -73,6 +77,16 @@ class WorkspaceIndex {
         file.classDefinition.interfaces.forEach { iface ->
             classUsages.computeIfAbsent(iface) { ConcurrentHashMap.newKeySet() }
                 .add(file.uri)
+        }
+
+        // Index string literals
+        file.methods.forEach { method ->
+            method.instructions.forEach { instr ->
+                if (instr is ConstStringInstruction) {
+                    stringIndex.computeIfAbsent(instr.value) { ConcurrentHashMap.newKeySet() }
+                        .add(Location(file.uri, instr.range))
+                }
+            }
         }
     }
     
@@ -167,6 +181,27 @@ class WorkspaceIndex {
     }
     
     /**
+     * Search string literals by substring match (case-insensitive).
+     * Returns matching string values with their locations.
+     */
+    fun searchStrings(query: String, maxResults: Int = 500): List<StringSearchResult> {
+        val normalizedQuery = query.lowercase()
+        return stringIndex.entries
+            .filter { (value, _) -> value.lowercase().contains(normalizedQuery) }
+            .flatMap { (value, locations) ->
+                locations.map { location -> StringSearchResult(value, location) }
+            }
+            .take(maxResults)
+    }
+
+    /**
+     * Get all locations of an exact string literal.
+     */
+    fun findStringLocations(value: String): Set<Location> {
+        return stringIndex[value] ?: emptySet()
+    }
+
+    /**
      * Find all files that reference a class.
      */
     fun findClassUsages(className: String): Set<String> {
@@ -180,7 +215,8 @@ class WorkspaceIndex {
         return IndexStats(
             classes = files.size,
             methods = methodLocations.values.sumOf { it.size },
-            fields = fieldLocations.size
+            fields = fieldLocations.size,
+            strings = stringIndex.size
         )
     }
     
@@ -274,6 +310,7 @@ class WorkspaceIndex {
         methodLocations.clear()
         fieldLocations.clear()
         classUsages.clear()
+        stringIndex.clear()
     }
     
     private fun methodSignature(className: String, methodName: String, descriptor: String): String {
@@ -288,5 +325,11 @@ class WorkspaceIndex {
 data class IndexStats(
     val classes: Int,
     val methods: Int,
-    val fields: Int
+    val fields: Int,
+    val strings: Int = 0
+)
+
+data class StringSearchResult(
+    val value: String,
+    val location: Location
 )

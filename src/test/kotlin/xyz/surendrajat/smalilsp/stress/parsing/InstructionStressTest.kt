@@ -228,6 +228,9 @@ class InstructionStressTest {
                                     is JumpInstruction -> {
                                         // JumpInstructions reference labels, not classes - skip
                                     }
+                                    is ConstStringInstruction -> {
+                                        stats.otherInstructions++
+                                    }
                                 }
                             }
                         }

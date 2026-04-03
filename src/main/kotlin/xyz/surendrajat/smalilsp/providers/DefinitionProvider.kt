@@ -230,6 +230,11 @@ class DefinitionProvider(
                 // This fallback shouldn't be reached for jumps
                 emptyList()
             }
+
+            is ConstStringInstruction -> {
+                // String literals have no definition to navigate to
+                emptyList()
+            }
         }
     }
     

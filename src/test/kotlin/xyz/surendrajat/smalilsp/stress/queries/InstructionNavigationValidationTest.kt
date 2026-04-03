@@ -213,6 +213,9 @@ class InstructionNavigationValidationTest {
                     is JumpInstruction -> {
                         // JumpInstructions reference labels, not classes - skip
                     }
+                    is ConstStringInstruction -> {
+                        // String literals don't reference classes - skip
+                    }
                 }
                 
                 if (success) stats.totalSuccess++

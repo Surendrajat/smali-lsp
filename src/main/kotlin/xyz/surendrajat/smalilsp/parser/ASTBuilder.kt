@@ -551,6 +551,48 @@ class ASTBuilder(
     }
     
     // ========== Label Parsing ==========
+
+    // ========== String Constant Parsing ==========
+
+    /**
+     * Parse const-string instruction
+     * Format: const-string v0, "string value"
+     */
+    override fun enterConstString(ctx: GeneratedSmaliParser.ConstStringContext) {
+        if (currentMethod == null) return
+
+        val register = ctx.registerIdentifier()?.text ?: return
+        val rawLiteral = ctx.stringLiteral()?.text ?: return
+        val value = rawLiteral.removeSurrounding("\"")
+
+        currentInstructions.add(ConstStringInstruction(
+            opcode = "const-string",
+            value = value,
+            register = register,
+            range = ctx.toRange()
+        ))
+    }
+
+    /**
+     * Parse const-string/jumbo instruction
+     * Format: const-string/jumbo v0, "string value"
+     */
+    override fun enterConstStringJumbo(ctx: GeneratedSmaliParser.ConstStringJumboContext) {
+        if (currentMethod == null) return
+
+        val register = ctx.registerIdentifier()?.text ?: return
+        val rawLiteral = ctx.stringLiteral()?.text ?: return
+        val value = rawLiteral.removeSurrounding("\"")
+
+        currentInstructions.add(ConstStringInstruction(
+            opcode = "const-string/jumbo",
+            value = value,
+            register = register,
+            range = ctx.toRange()
+        ))
+    }
+
+    // ========== Label Parsing ==========
     
     /**
      * Parse label definition (e.g., :cond_0)

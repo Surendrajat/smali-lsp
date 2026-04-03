@@ -157,6 +157,9 @@ class DiagnosticProvider(
                         // JumpInstructions reference labels within the same method
                         // Label validation could be added here if needed
                     }
+                    is xyz.surendrajat.smalilsp.core.ConstStringInstruction -> {
+                        // String literals don't need diagnostics
+                    }
                 }
             }
         }
