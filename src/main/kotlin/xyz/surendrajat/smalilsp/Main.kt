@@ -142,8 +142,7 @@ class SmaliLanguageServer : LanguageServer {
         for (folder in folders) {
             try {
                 val uri = folder.uri
-                val path = uri.replace("file://", "").replace("file:", "")
-                val dir = File(path)
+                val dir = File(java.net.URI(uri))
                 
                 if (dir.exists() && dir.isDirectory) {
                     logger.info("Scanning: ${dir.absolutePath}")
