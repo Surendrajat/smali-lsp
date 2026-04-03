@@ -4,7 +4,7 @@ import org.eclipse.lsp4j.MarkupContent
 import org.eclipse.lsp4j.Position
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
-import xyz.surendrajat.smalilsp.integration.lsp.TempTestWorkspace
+import xyz.surendrajat.smalilsp.shared.TempTestWorkspace
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import xyz.surendrajat.smalilsp.providers.HoverProvider
 import xyz.surendrajat.smalilsp.providers.ReferenceProvider

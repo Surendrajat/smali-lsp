@@ -6,9 +6,9 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Tag
 
-import xyz.surendrajat.smalilsp.integration.lsp.TestWorkspace
-import xyz.surendrajat.smalilsp.integration.lsp.E2ETestHarness
-import xyz.surendrajat.smalilsp.integration.lsp.withE2ETest
+import xyz.surendrajat.smalilsp.shared.TestWorkspace
+import xyz.surendrajat.smalilsp.shared.E2ETestHarness
+import xyz.surendrajat.smalilsp.shared.withE2ETest
 /**
  * E2E tests for cross-file navigation
  */

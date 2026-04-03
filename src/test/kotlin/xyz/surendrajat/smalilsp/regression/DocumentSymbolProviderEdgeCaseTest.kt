@@ -1,13 +1,13 @@
 package xyz.surendrajat.smalilsp.regression
 
 import org.junit.jupiter.api.Test
-import xyz.surendrajat.smalilsp.integration.lsp.TempTestWorkspace
+import xyz.surendrajat.smalilsp.shared.TempTestWorkspace
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 import xyz.surendrajat.smalilsp.providers.DocumentSymbolProvider
-import xyz.surendrajat.smalilsp.integration.lsp.TestWorkspace
+import xyz.surendrajat.smalilsp.shared.TestWorkspace
 /**
  * Edge case tests for DocumentSymbolProvider.
  * 

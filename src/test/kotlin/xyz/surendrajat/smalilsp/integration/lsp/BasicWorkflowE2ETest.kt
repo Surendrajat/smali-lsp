@@ -6,7 +6,8 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 
 import xyz.surendrajat.smalilsp.providers.DocumentSymbolProvider
-import xyz.surendrajat.smalilsp.integration.lsp.TestWorkspace
+import xyz.surendrajat.smalilsp.shared.TestWorkspace
+import xyz.surendrajat.smalilsp.shared.withE2ETest
 /**
  * E2E tests for basic LSP workflows
  */

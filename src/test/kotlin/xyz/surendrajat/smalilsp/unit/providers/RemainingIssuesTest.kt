@@ -3,10 +3,10 @@ package xyz.surendrajat.smalilsp.unit.providers
 import org.eclipse.lsp4j.Position
 import org.junit.jupiter.api.Test
 import kotlin.test.*
-import xyz.surendrajat.smalilsp.integration.lsp.TempTestWorkspace
+import xyz.surendrajat.smalilsp.shared.TempTestWorkspace
 
 import xyz.surendrajat.smalilsp.providers.HoverProvider
-import xyz.surendrajat.smalilsp.integration.lsp.TestWorkspace
+import xyz.surendrajat.smalilsp.shared.TestWorkspace
 /**
  * Test the 2 remaining user-reported issues:
  * 1. Hover on [ and [[ object arrays shows "not found" instead of array info

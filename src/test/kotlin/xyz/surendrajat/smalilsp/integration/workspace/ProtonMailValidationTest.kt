@@ -1,6 +1,6 @@
 package xyz.surendrajat.smalilsp.integration.workspace
 
-import xyz.surendrajat.smalilsp.TestUtils
+import xyz.surendrajat.smalilsp.shared.TestUtils
 
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test

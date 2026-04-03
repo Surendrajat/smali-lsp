@@ -9,9 +9,9 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import java.io.File
 
-import xyz.surendrajat.smalilsp.integration.lsp.E2ETestHarness
-import xyz.surendrajat.smalilsp.integration.lsp.TestWorkspace
-import xyz.surendrajat.smalilsp.TestUtils
+import xyz.surendrajat.smalilsp.shared.E2ETestHarness
+import xyz.surendrajat.smalilsp.shared.TestWorkspace
+import xyz.surendrajat.smalilsp.shared.TestUtils
 /**
  * End-to-end tests for Workspace Symbol feature.
  * 

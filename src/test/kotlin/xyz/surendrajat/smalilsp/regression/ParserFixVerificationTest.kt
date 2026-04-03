@@ -1,6 +1,6 @@
 package xyz.surendrajat.smalilsp.regression
 
-import xyz.surendrajat.smalilsp.TestUtils
+import xyz.surendrajat.smalilsp.shared.TestUtils
 
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*

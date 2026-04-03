@@ -5,7 +5,7 @@ import org.eclipse.lsp4j.Position
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import xyz.surendrajat.smalilsp.TestUtils
+import xyz.surendrajat.smalilsp.shared.TestUtils
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.indexer.WorkspaceScanner
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider

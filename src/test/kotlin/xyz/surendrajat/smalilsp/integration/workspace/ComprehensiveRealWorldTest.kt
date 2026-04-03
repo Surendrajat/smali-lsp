@@ -13,7 +13,7 @@ import xyz.surendrajat.smalilsp.parser.SmaliParser
 import xyz.surendrajat.smalilsp.providers.HoverProvider
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import xyz.surendrajat.smalilsp.providers.ReferenceProvider
-import xyz.surendrajat.smalilsp.TestUtils
+import xyz.surendrajat.smalilsp.shared.TestUtils
 import java.io.File
 import kotlinx.coroutines.runBlocking
 import kotlin.system.measureTimeMillis

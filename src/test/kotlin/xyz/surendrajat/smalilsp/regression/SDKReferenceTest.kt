@@ -2,7 +2,7 @@ package xyz.surendrajat.smalilsp.regression
 
 import org.eclipse.lsp4j.Position
 import org.junit.jupiter.api.Test
-import xyz.surendrajat.smalilsp.integration.lsp.TempTestWorkspace
+import xyz.surendrajat.smalilsp.shared.TempTestWorkspace
 import xyz.surendrajat.smalilsp.providers.ReferenceProvider
 import kotlin.test.assertTrue
 

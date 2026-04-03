@@ -2,13 +2,13 @@ package xyz.surendrajat.smalilsp.unit.providers
 
 import org.eclipse.lsp4j.SymbolKind
 import org.junit.jupiter.api.Test
-import xyz.surendrajat.smalilsp.integration.lsp.TempTestWorkspace
+import xyz.surendrajat.smalilsp.shared.TempTestWorkspace
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 import xyz.surendrajat.smalilsp.providers.DocumentSymbolProvider
-import xyz.surendrajat.smalilsp.integration.lsp.TestWorkspace
+import xyz.surendrajat.smalilsp.shared.TestWorkspace
 /**
  * Tests for DocumentSymbolProvider.
  * 

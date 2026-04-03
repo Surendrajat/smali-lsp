@@ -1,6 +1,6 @@
 package xyz.surendrajat.smalilsp.integration.navigation
 
-import xyz.surendrajat.smalilsp.TestUtils
+import xyz.surendrajat.smalilsp.shared.TestUtils
 
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.parser.SmaliParser

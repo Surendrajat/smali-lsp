@@ -1,7 +1,7 @@
 package xyz.surendrajat.smalilsp.integration.workspace
 
 import kotlinx.coroutines.runBlocking
-import xyz.surendrajat.smalilsp.TestUtils
+import xyz.surendrajat.smalilsp.shared.TestUtils
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Assumptions.assumeTrue

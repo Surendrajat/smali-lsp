@@ -1,6 +1,6 @@
 package xyz.surendrajat.smalilsp.integration.lsp
 
-import xyz.surendrajat.smalilsp.TestUtils
+import xyz.surendrajat.smalilsp.shared.TestUtils
 
 import org.eclipse.lsp4j.*
 import org.junit.jupiter.api.AfterEach
@@ -12,8 +12,8 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertTrue
 
-import xyz.surendrajat.smalilsp.integration.lsp.E2ETestHarness
-import xyz.surendrajat.smalilsp.integration.lsp.TestWorkspace
+import xyz.surendrajat.smalilsp.shared.E2ETestHarness
+import xyz.surendrajat.smalilsp.shared.TestWorkspace
 /**
  * E2E tests for Diagnostics feature.
  * Tests diagnostic computation on real-world Mastodon APK.

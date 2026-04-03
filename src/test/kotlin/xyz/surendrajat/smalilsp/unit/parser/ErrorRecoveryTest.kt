@@ -2,7 +2,7 @@ package xyz.surendrajat.smalilsp.unit.parser
 
 import org.eclipse.lsp4j.Position
 import org.junit.jupiter.api.Test
-import xyz.surendrajat.smalilsp.integration.lsp.TempTestWorkspace
+import xyz.surendrajat.smalilsp.shared.TempTestWorkspace
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.parser.SmaliParser
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider
@@ -13,7 +13,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-import xyz.surendrajat.smalilsp.integration.lsp.TestWorkspace
+import xyz.surendrajat.smalilsp.shared.TestWorkspace
 /**
  * Error recovery and edge case tests.
  * 

@@ -2,7 +2,7 @@ package xyz.surendrajat.smalilsp.regression
 
 import org.eclipse.lsp4j.Position
 import org.junit.jupiter.api.Test
-import xyz.surendrajat.smalilsp.TestUtils
+import xyz.surendrajat.smalilsp.shared.TestUtils
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.parser.SmaliParser
 import xyz.surendrajat.smalilsp.providers.ReferenceProvider
