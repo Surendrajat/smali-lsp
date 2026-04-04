@@ -61,41 +61,42 @@ class SmaliTextDocumentService(
     override fun didOpen(params: DidOpenTextDocumentParams) {
         val uri = params.textDocument.uri
         val content = params.textDocument.text
-        
+
         logger.debug("didOpen: $uri")
-        
+
         try {
-            val smaliFile = parser.parse(uri, content)
-            if (smaliFile != null) {
-                index.indexFile(smaliFile)
-                logger.debug("Indexed: $uri (${smaliFile.classDefinition.name})")
+            // Skip re-parsing if already indexed from workspace scan
+            val existing = index.findFileByUri(uri)
+            if (existing == null) {
+                val smaliFile = parser.parse(uri, content)
+                if (smaliFile != null) {
+                    index.indexFile(smaliFile)
+                    logger.debug("Indexed: $uri (${smaliFile.classDefinition.name})")
+                } else {
+                    logger.warn("Failed to parse: $uri")
+                }
             } else {
-                logger.warn("Failed to parse: $uri")
+                logger.debug("Already indexed: $uri")
             }
-            
-            // Compute and publish diagnostics
-            val diagnostics = diagnosticProvider.computeDiagnostics(uri, content)
-            publishDiagnostics(uri, diagnostics)
-            logger.debug("Published ${diagnostics.size} diagnostic(s) for $uri")
         } catch (e: Exception) {
             logger.error("Error processing didOpen for $uri", e)
         }
     }
-    
+
     /**
      * Document changed - re-parse and re-index.
      */
     override fun didChange(params: DidChangeTextDocumentParams) {
         val uri = params.textDocument.uri
         val changes = params.contentChanges
-        
+
         if (changes.isEmpty()) return
-        
+
         // Full document sync (TextDocumentSyncKind.Full)
         val content = changes[0].text
-        
+
         logger.debug("didChange: $uri")
-        
+
         try {
             val smaliFile = parser.parse(uri, content)
             if (smaliFile != null) {
@@ -104,11 +105,10 @@ class SmaliTextDocumentService(
             } else {
                 logger.warn("Failed to re-parse: $uri")
             }
-            
-            // Compute and publish diagnostics
+
+            // Diagnostics on user edits only
             val diagnostics = diagnosticProvider.computeDiagnostics(uri, content)
             publishDiagnostics(uri, diagnostics)
-            logger.debug("Published ${diagnostics.size} diagnostic(s) for $uri")
         } catch (e: Exception) {
             logger.error("Error processing didChange for $uri", e)
         }
