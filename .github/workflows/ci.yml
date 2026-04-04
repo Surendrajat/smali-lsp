@@ -48,20 +48,20 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
 
+      - name: Build JAR
+        run: ./gradlew shadowJar
+
       - name: Unit tests
         run: ./gradlew test --tests "*.unit.*"
 
-      - name: Integration tests (synthetic only)
-        run: ./gradlew test --tests "*.integration.lsp.*" --tests "*.integration.navigation.*" --tests "*.integration.workspace.*"
+      - name: Integration tests
+        run: ./gradlew test --tests "*.integration.*"
 
       - name: Regression tests
         run: ./gradlew test --tests "*.regression.*"
 
-      - name: Build JAR (required for MCP tests)
-        run: ./gradlew shadowJar
-
-      - name: CLI and MCP tests
-        run: ./gradlew test --tests "*.cli.*"
+      - name: Stress tests
+        run: ./gradlew test --tests "*.stress.*"
 
       - name: Test Report
         uses: dorny/test-reporter@v3

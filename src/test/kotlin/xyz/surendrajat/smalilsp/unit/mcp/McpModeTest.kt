@@ -205,7 +205,7 @@ class McpModeTest {
     }
 
     @Test
-    fun `test tools list returns all 8 tools`() {
+    fun `test tools list returns all 11 tools`() {
         val process = startMcpProcess()
 
         try {

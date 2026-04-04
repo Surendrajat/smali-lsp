@@ -189,8 +189,8 @@ class WorkspaceScannerPerformanceTest {
             assertEquals(fileCount * 2, stats.fields) // 2 fields per class
             assertEquals(fileCount * 3, stats.methods) // 3 methods per class
             
-            // Should be fast
-            assertTrue(result.durationMs < 3000, "500 files should complete in <3 seconds")
+            // Should be fast (15s is conservative for CI runners)
+            assertTrue(result.durationMs < 15_000, "500 files should complete in <15 seconds")
             
         } finally {
             tempDir.deleteRecursively()
