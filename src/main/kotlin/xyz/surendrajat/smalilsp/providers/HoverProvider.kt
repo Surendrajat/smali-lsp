@@ -19,7 +19,7 @@ import java.net.URI
  * - Field types
  * - SDK class information
  * 
- * Format: Markdown for rich display in VS Code
+ * Format: Markdown for rich display in IDE hovers.
  */
 class HoverProvider(
     private val workspaceIndex: WorkspaceIndex

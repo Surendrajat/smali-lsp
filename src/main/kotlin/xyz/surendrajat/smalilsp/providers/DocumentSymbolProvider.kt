@@ -5,7 +5,7 @@ import xyz.surendrajat.smalilsp.core.SmaliFile
 import xyz.surendrajat.smalilsp.resolver.TypeResolver
 
 /**
- * Provides document outline/symbols for VS Code.
+ * Provides document outline/symbols in IDEs.
  * 
  * Shows hierarchical view:
  * - Class

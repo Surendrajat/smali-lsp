@@ -21,7 +21,7 @@ import kotlin.test.assertTrue
  * - File URIs are resolved correctly
  * - Index lookups work with real workspace structure
  * 
- * This is critical for real-world VS Code usage where users work with
+ * This is critical for real-world IDE usage where users work with
  * hundreds or thousands of .smali files in a workspace.
  */
 class CrossFileIntegrationTest {

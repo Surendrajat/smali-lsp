@@ -12,7 +12,7 @@ import xyz.surendrajat.smalilsp.shared.TestWorkspace
 /**
  * Tests for DocumentSymbolProvider.
  * 
- * Verifies document outline functionality for VS Code explorer sidebar.
+ * Verifies document outline functionality for IDE's document outline view.
  */
 class DocumentSymbolProviderTest {
     
