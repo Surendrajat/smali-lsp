@@ -8,6 +8,7 @@ import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.indexer.WorkspaceScanner
 import xyz.surendrajat.smalilsp.providers.CallHierarchyProvider
 import xyz.surendrajat.smalilsp.providers.CodeLensProvider
+import xyz.surendrajat.smalilsp.providers.CompletionProvider
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import xyz.surendrajat.smalilsp.providers.HoverProvider
 import xyz.surendrajat.smalilsp.providers.ReferenceProvider
@@ -115,6 +116,7 @@ class SmaliLanguageServer : LanguageServer {
     private val callHierarchyProvider = CallHierarchyProvider(index)
     private val typeHierarchyProvider = TypeHierarchyProvider(index)
     private val codeLensProvider = CodeLensProvider(index)
+    private val completionProvider = CompletionProvider(index)
 
     // Text document service
     private val textDocumentService = SmaliTextDocumentService(
@@ -124,7 +126,8 @@ class SmaliLanguageServer : LanguageServer {
         referenceProvider,
         callHierarchyProvider,
         typeHierarchyProvider,
-        codeLensProvider
+        codeLensProvider,
+        completionProvider
     )
     
     // Workspace service
@@ -238,6 +241,9 @@ class SmaliLanguageServer : LanguageServer {
 
         // Code lens
         capabilities.setCodeLensProvider(CodeLensOptions(true))
+
+        // Completion
+        capabilities.setCompletionProvider(CompletionOptions(false, listOf("L", ">", "/")))
 
         val serverInfo = ServerInfo("Smali Language Server", "1.0.0")
         return InitializeResult(capabilities, serverInfo)

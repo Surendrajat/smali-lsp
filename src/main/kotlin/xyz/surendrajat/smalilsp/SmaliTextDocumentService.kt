@@ -8,6 +8,7 @@ import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.parser.SmaliParser
 import xyz.surendrajat.smalilsp.providers.CallHierarchyProvider
 import xyz.surendrajat.smalilsp.providers.CodeLensProvider
+import xyz.surendrajat.smalilsp.providers.CompletionProvider
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import xyz.surendrajat.smalilsp.providers.DiagnosticProvider
 import xyz.surendrajat.smalilsp.providers.HoverProvider
@@ -37,7 +38,8 @@ class SmaliTextDocumentService(
     private val referenceProvider: ReferenceProvider,
     private val callHierarchyProvider: CallHierarchyProvider,
     private val typeHierarchyProvider: TypeHierarchyProvider,
-    private val codeLensProvider: CodeLensProvider
+    private val codeLensProvider: CodeLensProvider,
+    private val completionProvider: CompletionProvider
 ) : TextDocumentService {
     
     private val logger = LoggerFactory.getLogger(SmaliTextDocumentService::class.java)
@@ -357,6 +359,30 @@ class SmaliTextDocumentService(
             } catch (e: Exception) {
                 logger.error("Error in resolveCodeLens", e)
                 params
+            }
+        }
+    }
+
+    override fun completion(params: CompletionParams): CompletableFuture<Either<MutableList<CompletionItem>, CompletionList>> {
+        val uri = params.textDocument.uri
+        val position = params.position
+
+        return CompletableFuture.supplyAsync {
+            try {
+                val file = index.findFileByUri(uri)
+                val lineText = if (file != null) {
+                    try {
+                        val path = java.net.URI(uri).let { java.io.File(it) }
+                        val lines = path.readLines()
+                        if (position.line < lines.size) lines[position.line] else ""
+                    } catch (_: Exception) { "" }
+                } else ""
+
+                val result = completionProvider.provideCompletions(uri, position, lineText)
+                Either.forRight<MutableList<CompletionItem>, CompletionList>(result)
+            } catch (e: Exception) {
+                logger.error("Error in completion for $uri", e)
+                Either.forRight(CompletionList(false, emptyList()))
             }
         }
     }
