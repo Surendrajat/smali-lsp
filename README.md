@@ -20,6 +20,26 @@ A Language Server Protocol (LSP) server with built-in MCP server for [Smali](htt
 
 Built-in [MCP](https://modelcontextprotocol.io/) server for full semantic understanding of decompiled APKs by AI agents — various tools covering indexing, navigation, search, call graphs, and cross-references.
 
+<details>
+<summary>Available tools</summary>
+
+| Tool                     | Description                                                                      |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| `smali_index`            | Index a directory of smali files                                                 |
+| `smali_find_definition`  | Go to definition for a symbol at a position                                      |
+| `smali_search_symbols`   | Fuzzy search across classes, methods, fields                                     |
+| `smali_get_stats`        | Index statistics (class/method/field/string counts)                              |
+| `smali_find_references`  | Find all references to a symbol                                                  |
+| `smali_hover`            | Get hover info (signatures, types, class details)                                |
+| `smali_diagnostics`      | Compute diagnostics for a file                                                   |
+| `smali_document_symbols` | Get document outline (classes, methods, fields)                                  |
+| `smali_search_strings`   | Search const-string literals by substring                                        |
+| `smali_call_graph`       | Incoming/outgoing call graph for a method                                        |
+| `smali_xref_summary`     | Full cross-reference report (subclasses, implementors, callers, field accessors) |
+
+</details>
+
+
 ## Usage
 
 ### LSP Server
@@ -112,25 +132,6 @@ Add to your MCP config (`.vscode/mcp.json`,`claude_desktop_config.json`, Cursor 
   }
 }
 ```
-
-<details>
-<summary>Available tools</summary>
-
-| Tool                     | Description                                                                      |
-| ------------------------ | -------------------------------------------------------------------------------- |
-| `smali_index`            | Index a directory of smali files                                                 |
-| `smali_find_definition`  | Go to definition for a symbol at a position                                      |
-| `smali_search_symbols`   | Fuzzy search across classes, methods, fields                                     |
-| `smali_get_stats`        | Index statistics (class/method/field/string counts)                              |
-| `smali_find_references`  | Find all references to a symbol                                                  |
-| `smali_hover`            | Get hover info (signatures, types, class details)                                |
-| `smali_diagnostics`      | Compute diagnostics for a file                                                   |
-| `smali_document_symbols` | Get document outline (classes, methods, fields)                                  |
-| `smali_search_strings`   | Search const-string literals by substring                                        |
-| `smali_call_graph`       | Incoming/outgoing call graph for a method                                        |
-| `smali_xref_summary`     | Full cross-reference report (subclasses, implementors, callers, field accessors) |
-
-</details>
 
 ## Performance
 
