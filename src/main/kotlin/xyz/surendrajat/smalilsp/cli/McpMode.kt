@@ -161,12 +161,12 @@ class McpMode {
 
         server.addTool(
             name = "smali_find_definition",
-            description = "Find the definition of a class. Returns class info including superclass, interfaces, methods, and fields.",
+            description = "Find the definition of a class. Accepts fully qualified name (e.g., 'Lcom/example/MainActivity;') or simple name (e.g., 'MainActivity'). Returns class info including superclass, interfaces, methods, and fields.",
             inputSchema = toolSchema(
                 properties = buildJsonObject {
                     putJsonObject("symbol") {
                         put("type", "string")
-                        put("description", "Fully qualified class name (e.g., 'Lcom/example/MainActivity;')")
+                        put("description", "Class name — fully qualified (e.g., 'Lcom/example/MainActivity;') or simple (e.g., 'MainActivity')")
                     }
                 },
                 required = listOf("symbol")
@@ -177,21 +177,26 @@ class McpMode {
             val symbol = request.arguments?.get("symbol")?.jsonPrimitive?.content
                 ?: return@addTool toolError("Missing required argument: 'symbol'")
 
+            // Try exact match first (fully qualified), then fall back to simple name search
             val classFile = index!!.findClass(symbol)
-            if (classFile != null) {
-                val result = mapOf(
-                    "type" to "class",
-                    "name" to classFile.classDefinition.name,
-                    "uri" to classFile.uri,
-                    "superClass" to classFile.classDefinition.superClass,
-                    "interfaces" to classFile.classDefinition.interfaces,
-                    "methods" to classFile.methods.size,
-                    "fields" to classFile.fields.size
-                )
-                toolResult(gson.toJson(mapOf("symbol" to symbol, "results" to listOf(result), "count" to 1)))
+            val matchedFiles = if (classFile != null) {
+                listOf(classFile)
             } else {
-                toolResult(gson.toJson(mapOf("symbol" to symbol, "results" to emptyList<Any>(), "count" to 0)))
+                index!!.findClassesBySimpleName(symbol)
             }
+
+            val results = matchedFiles.map { file ->
+                mapOf(
+                    "type" to "class",
+                    "name" to file.classDefinition.name,
+                    "uri" to file.uri,
+                    "superClass" to file.classDefinition.superClass,
+                    "interfaces" to file.classDefinition.interfaces,
+                    "methods" to file.methods.size,
+                    "fields" to file.fields.size
+                )
+            }
+            toolResult(gson.toJson(mapOf("symbol" to symbol, "results" to results, "count" to results.size)))
         }
 
         server.addTool(
@@ -511,6 +516,7 @@ class McpMode {
                     )
                 }
                 result["incoming_count"] = incoming.size
+                result["_note_incoming"] = "incoming_count = unique calling methods"
             }
 
             if (direction == "outgoing" || direction == "both") {
@@ -524,6 +530,7 @@ class McpMode {
                     )
                 }
                 result["outgoing_count"] = outgoing.size
+                result["_note_outgoing"] = "outgoing_count = unique called methods"
             }
 
             toolResult(gson.toJson(result))
@@ -599,10 +606,10 @@ class McpMode {
                 "subclasses" to subclasses,
                 "implementors" to implementors,
                 "method_callers" to methodCallers.map { (method, callers) ->
-                    mapOf("method" to method, "callers" to callers.toList(), "count" to callers.size)
+                    mapOf("method" to method, "callers" to callers.toList(), "caller_class_count" to callers.size)
                 },
                 "field_accessors" to fieldAccessors.map { (field, accessors) ->
-                    mapOf("field" to field, "accessors" to accessors.toList(), "count" to accessors.size)
+                    mapOf("field" to field, "accessors" to accessors.toList(), "accessor_class_count" to accessors.size)
                 },
                 "type_references" to typeUsages.toList(),
                 "summary" to mapOf(

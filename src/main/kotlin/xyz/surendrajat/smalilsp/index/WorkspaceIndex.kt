@@ -97,6 +97,17 @@ class WorkspaceIndex {
     fun findClass(className: String): SmaliFile? {
         return files[className]
     }
+
+    /**
+     * Find classes by simple name (e.g., "MainActivity" matches "Lcom/example/MainActivity;").
+     * Returns all matching classes since simple names are not unique.
+     */
+    fun findClassesBySimpleName(simpleName: String): List<SmaliFile> {
+        val suffix = "/$simpleName;"
+        return files.entries
+            .filter { it.key.endsWith(suffix) }
+            .map { it.value }
+    }
     
     /**
      * Get URI for a class in workspace.

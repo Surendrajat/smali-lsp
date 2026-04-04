@@ -218,12 +218,13 @@ class McpModeTest {
             val tools = result.getAsJsonArray("tools")
 
             val toolNames = tools.map { it.asJsonObject.get("name").asString }.toSet()
-            assertEquals(8, toolNames.size, "Expected 8 tools, got: $toolNames")
+            assertEquals(11, toolNames.size, "Expected 11 tools, got: $toolNames")
 
             val expectedTools = setOf(
                 "smali_index", "smali_find_definition", "smali_search_symbols",
                 "smali_get_stats", "smali_find_references", "smali_hover",
-                "smali_diagnostics", "smali_document_symbols"
+                "smali_diagnostics", "smali_document_symbols",
+                "smali_search_strings", "smali_call_graph", "smali_xref_summary"
             )
             assertEquals(expectedTools, toolNames)
 
