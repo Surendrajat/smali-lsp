@@ -25,6 +25,7 @@ import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.indexer.WorkspaceScanner
 import xyz.surendrajat.smalilsp.parser.SmaliParser
 import xyz.surendrajat.smalilsp.providers.CallHierarchyProvider
+import xyz.surendrajat.smalilsp.providers.TypeHierarchyProvider
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import xyz.surendrajat.smalilsp.providers.DiagnosticProvider
 import xyz.surendrajat.smalilsp.providers.HoverProvider
@@ -68,6 +69,7 @@ class McpMode {
     private var diagnosticProvider: DiagnosticProvider? = null
     private var workspaceSymbolProvider: WorkspaceSymbolProvider? = null
     private var callHierarchyProvider: CallHierarchyProvider? = null
+    private var typeHierarchyProvider: TypeHierarchyProvider? = null
 
     fun run() {
         val server = Server(
@@ -132,6 +134,7 @@ class McpMode {
             diagnosticProvider = null
             workspaceSymbolProvider = null
             callHierarchyProvider = null
+            typeHierarchyProvider = null
             xyz.surendrajat.smalilsp.util.StringPool.clear()
 
             val newIndex = WorkspaceIndex()
@@ -145,6 +148,7 @@ class McpMode {
             diagnosticProvider = DiagnosticProvider(parser, newIndex)
             workspaceSymbolProvider = WorkspaceSymbolProvider(newIndex)
             callHierarchyProvider = CallHierarchyProvider(newIndex)
+            typeHierarchyProvider = TypeHierarchyProvider(newIndex)
 
             indexedDirectory = dir.absolutePath
             val duration = System.currentTimeMillis() - startTime
@@ -620,6 +624,82 @@ class McpMode {
                     "type_reference_count" to typeUsages.size
                 )
             )
+
+            toolResult(gson.toJson(result))
+        }
+
+        // --- Type Hierarchy ---
+
+        server.addTool(
+            name = "smali_type_hierarchy",
+            description = "Get the type hierarchy for a class: supertypes (parent class + interfaces) and subtypes " +
+                    "(direct subclasses + implementors). Useful for understanding inheritance chains.",
+            inputSchema = toolSchema(
+                properties = buildJsonObject {
+                    putJsonObject("class_name") {
+                        put("type", "string")
+                        put("description", "Fully qualified class name (e.g., 'Lcom/example/MyClass;')")
+                    }
+                    putJsonObject("direction") {
+                        put("type", "string")
+                        put("description", "Direction: 'supertypes', 'subtypes', or 'both' (default: 'both')")
+                    }
+                },
+                required = listOf("class_name")
+            )
+        ) { request ->
+            requireIndex() ?: return@addTool toolError("No index loaded. Call smali_index first.")
+
+            val className = request.arguments?.get("class_name")?.jsonPrimitive?.content
+                ?: return@addTool toolError("Missing required argument: 'class_name'")
+            val direction = request.arguments?.get("direction")?.jsonPrimitive?.content ?: "both"
+
+            val provider = typeHierarchyProvider
+                ?: return@addTool toolError("No index loaded. Call smali_index first.")
+
+            val classFile = index!!.findClass(className)
+            if (classFile == null) {
+                return@addTool toolResult(gson.toJson(mapOf(
+                    "class" to className,
+                    "error" to "Class not found in index"
+                )))
+            }
+
+            val classDef = classFile.classDefinition
+            val item = org.eclipse.lsp4j.TypeHierarchyItem(
+                className.removePrefix("L").removeSuffix(";").substringAfterLast('/'),
+                org.eclipse.lsp4j.SymbolKind.Class,
+                classFile.uri,
+                classDef.range,
+                classDef.range,
+                className
+            )
+
+            val result = mutableMapOf<String, Any>(
+                "class" to className
+            )
+
+            if (direction == "supertypes" || direction == "both") {
+                val supertypes = provider.supertypes(item).map { st ->
+                    mapOf(
+                        "name" to st.name,
+                        "class" to (st.detail ?: ""),
+                        "kind" to st.kind.toString()
+                    )
+                }
+                result["supertypes"] = supertypes
+            }
+
+            if (direction == "subtypes" || direction == "both") {
+                val subtypes = provider.subtypes(item).map { st ->
+                    mapOf(
+                        "name" to st.name,
+                        "class" to (st.detail ?: ""),
+                        "kind" to st.kind.toString()
+                    )
+                }
+                result["subtypes"] = subtypes
+            }
 
             toolResult(gson.toJson(result))
         }

@@ -11,6 +11,7 @@ import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import xyz.surendrajat.smalilsp.providers.DiagnosticProvider
 import xyz.surendrajat.smalilsp.providers.HoverProvider
 import xyz.surendrajat.smalilsp.providers.ReferenceProvider
+import xyz.surendrajat.smalilsp.providers.TypeHierarchyProvider
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CompletableFuture
 
@@ -33,7 +34,8 @@ class SmaliTextDocumentService(
     private val definitionProvider: DefinitionProvider,
     private val hoverProvider: HoverProvider,
     private val referenceProvider: ReferenceProvider,
-    private val callHierarchyProvider: CallHierarchyProvider
+    private val callHierarchyProvider: CallHierarchyProvider,
+    private val typeHierarchyProvider: TypeHierarchyProvider
 ) : TextDocumentService {
     
     private val logger = LoggerFactory.getLogger(SmaliTextDocumentService::class.java)
@@ -292,6 +294,42 @@ class SmaliTextDocumentService(
                 callHierarchyProvider.outgoingCalls(params.item).toMutableList()
             } catch (e: Exception) {
                 logger.error("Error in callHierarchyOutgoingCalls", e)
+                mutableListOf()
+            }
+        }
+    }
+
+    override fun prepareTypeHierarchy(params: TypeHierarchyPrepareParams): CompletableFuture<MutableList<TypeHierarchyItem>> {
+        val uri = params.textDocument.uri
+        val position = params.position
+
+        return CompletableFuture.supplyAsync {
+            try {
+                typeHierarchyProvider.prepare(uri, position).toMutableList()
+            } catch (e: Exception) {
+                logger.error("Error in prepareTypeHierarchy for $uri", e)
+                mutableListOf()
+            }
+        }
+    }
+
+    override fun typeHierarchySupertypes(params: TypeHierarchySupertypesParams): CompletableFuture<MutableList<TypeHierarchyItem>> {
+        return CompletableFuture.supplyAsync {
+            try {
+                typeHierarchyProvider.supertypes(params.item).toMutableList()
+            } catch (e: Exception) {
+                logger.error("Error in typeHierarchySupertypes", e)
+                mutableListOf()
+            }
+        }
+    }
+
+    override fun typeHierarchySubtypes(params: TypeHierarchySubtypesParams): CompletableFuture<MutableList<TypeHierarchyItem>> {
+        return CompletableFuture.supplyAsync {
+            try {
+                typeHierarchyProvider.subtypes(params.item).toMutableList()
+            } catch (e: Exception) {
+                logger.error("Error in typeHierarchySubtypes", e)
                 mutableListOf()
             }
         }

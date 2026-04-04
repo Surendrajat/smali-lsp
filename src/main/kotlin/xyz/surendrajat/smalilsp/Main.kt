@@ -10,6 +10,7 @@ import xyz.surendrajat.smalilsp.providers.CallHierarchyProvider
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import xyz.surendrajat.smalilsp.providers.HoverProvider
 import xyz.surendrajat.smalilsp.providers.ReferenceProvider
+import xyz.surendrajat.smalilsp.providers.TypeHierarchyProvider
 import xyz.surendrajat.smalilsp.cli.McpMode
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -111,14 +112,16 @@ class SmaliLanguageServer : LanguageServer {
     private val hoverProvider = HoverProvider(index)
     private val referenceProvider = ReferenceProvider(index)
     private val callHierarchyProvider = CallHierarchyProvider(index)
-    
+    private val typeHierarchyProvider = TypeHierarchyProvider(index)
+
     // Text document service
     private val textDocumentService = SmaliTextDocumentService(
         index,
         definitionProvider,
         hoverProvider,
         referenceProvider,
-        callHierarchyProvider
+        callHierarchyProvider,
+        typeHierarchyProvider
     )
     
     // Workspace service
@@ -226,7 +229,10 @@ class SmaliLanguageServer : LanguageServer {
 
         // Call hierarchy
         capabilities.setCallHierarchyProvider(true)
-        
+
+        // Type hierarchy
+        capabilities.setTypeHierarchyProvider(true)
+
         val serverInfo = ServerInfo("Smali Language Server", "1.0.0")
         return InitializeResult(capabilities, serverInfo)
     }
