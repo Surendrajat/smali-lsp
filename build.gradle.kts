@@ -1,4 +1,3 @@
-import java.io.ByteArrayOutputStream
 import java.time.Instant
 
 plugins {
@@ -105,13 +104,10 @@ tasks.register("generateVersionProperties") {
     outputs.file(versionPropertiesFile)
     doLast {
         val commitHash = try {
-            val stdout = ByteArrayOutputStream()
-            exec {
+            providers.exec {
                 commandLine("git", "rev-parse", "--short", "HEAD")
-                standardOutput = stdout
                 isIgnoreExitValue = true
-            }
-            stdout.toString().trim().ifEmpty { "unknown" }
+            }.standardOutput.asText.get().trim().ifEmpty { "unknown" }
         } catch (_: Exception) {
             "unknown"
         }
