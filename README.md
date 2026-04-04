@@ -1,51 +1,28 @@
 # smali-lsp
 
-A Language Server Protocol (LSP) server and built-in MCP server for [Smali](https://github.com/google/smali) — the bytecode language of Android apps.
-
+A Language Server Protocol (LSP) server with built-in MCP server for [Smali](https://github.com/google/smali) — the bytecode language of Android apps.
 
 ## Features
+
+### LSP Server (for IDEs)
 
 - **Go to Definition** — jump from any instruction to its target (classes, methods, fields, labels)
 - **Find References** — cross-file xrefs with inheritance-aware polymorphic matching
 - **Hover** — method signatures, field types, class info, SDK class detection
+- **Call Hierarchy** — incoming/outgoing call graphs for any method
 - **Document Symbols** — class outline with methods and fields
 - **Workspace Symbols** — fuzzy search across the entire codebase
 - **Diagnostics** — syntax errors and unresolved class references
-- **Label Navigation** — goto/if-*/switch targets within methods
-- **All 41 Dalvik instruction types** supported (invoke-*, iget/iput/sget/sput, new-instance, check-cast, etc.)
-- **MCP Server** - built in MCP Server for full semantic understanding of decompiled APKs for AI agents.
+- **Label Navigation** — goto/if-\*/switch targets within methods
+- **All 41 Dalvik instruction types** supported (invoke-\*, iget/iput/sget/sput, new-instance, check-cast, etc.)
 
-## Performance
+### MCP Server (for AI agents)
 
-Tested on real-world APKs (119K smali files, 118K classes, 560K methods):
-
-| Operation | Avg Latency | Throughput |
-|-----------|-------------|------------|
-| Goto Definition | 0.26ms | 4,011 ops/sec |
-| Parsing / Indexing | ~0.3ms/file | ~3,300 files/sec |
-| Find References | <1s | — |
-| Symbol Search | <1s | — |
-
-- All queries (definition, references, symbols, hover) return in <1s after indexing
-- 99.7% goto-definition coverage (tested on 300K+ methods)
-- 100% parse success rate on 100K+ real smali files
-- 18 KB memory per indexed file (string-interned)
-- Indexed 119K smali files in ~30–36s (warm), ~40s (cold)
-- Indexed 27K smali files in ~6s
-
-## Building
-
-Requires Java 17+ and Gradle 8.8+.
-
-```bash
-./gradlew shadowJar
-```
-
-Output: `build/libs/smali-lsp-all.jar`
+Built-in [MCP](https://modelcontextprotocol.io/) server for full semantic understanding of decompiled APKs by AI agents — various tools covering indexing, navigation, search, call graphs, and cross-references.
 
 ## Usage
 
-### LSP Server (for IDEs)
+### LSP Server
 
 The server communicates over **stdio** in standard LSP protocol — no daemon, no port, just stdio:
 
@@ -76,6 +53,7 @@ end
 
 lspconfig.smali_lsp.setup {}
 ```
+
 </details>
 
 <details>
@@ -93,6 +71,7 @@ language-servers = ["smali-lsp"]
 command = "java"
 args = ["-jar", "/path/to/smali-lsp-all.jar"]
 ```
+
 </details>
 
 <details>
@@ -103,15 +82,17 @@ args = ["-jar", "/path/to/smali-lsp-all.jar"]
   (add-to-list 'eglot-server-programs
                '(smali-mode . ("java" "-jar" "/path/to/smali-lsp-all.jar"))))
 ```
+
 </details>
 
 <details>
 <summary>VS Code (WIP)</summary>
 
 Extension not yet published. Use the MCP server (below) for VS Code + AI agent workflows.
+
 </details>
 
-### MCP Server (for AI agents)
+### MCP Server
 
 ```bash
 java -jar smali-lsp-all.jar --mcp
@@ -134,19 +115,61 @@ Add to your MCP config (`.vscode/mcp.json`,`claude_desktop_config.json`, Cursor 
 
 <details>
 <summary>Available tools</summary>
-`smali_index`, `smali_find_definition`, `smali_search_symbols`, `smali_get_stats`, `smali_find_references`, `smali_hover`, `smali_diagnostics`, `smali_document_symbols`
+
+| Tool                     | Description                                                                      |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| `smali_index`            | Index a directory of smali files                                                 |
+| `smali_find_definition`  | Go to definition for a symbol at a position                                      |
+| `smali_search_symbols`   | Fuzzy search across classes, methods, fields                                     |
+| `smali_get_stats`        | Index statistics (class/method/field/string counts)                              |
+| `smali_find_references`  | Find all references to a symbol                                                  |
+| `smali_hover`            | Get hover info (signatures, types, class details)                                |
+| `smali_diagnostics`      | Compute diagnostics for a file                                                   |
+| `smali_document_symbols` | Get document outline (classes, methods, fields)                                  |
+| `smali_search_strings`   | Search const-string literals by substring                                        |
+| `smali_call_graph`       | Incoming/outgoing call graph for a method                                        |
+| `smali_xref_summary`     | Full cross-reference report (subclasses, implementors, callers, field accessors) |
+
 </details>
+
+## Performance
+
+Tested on real-world APKs (119K smali files, 118K classes, 560K methods):
+
+| Operation          | Avg Latency | Throughput       |
+| ------------------ | ----------- | ---------------- |
+| Goto Definition    | 0.26ms      | 4,011 ops/sec    |
+| Parsing / Indexing | ~0.3ms/file | ~3,300 files/sec |
+| Find References    | <1s         | —                |
+| Symbol Search      | <1s         | —                |
+
+- All queries (definition, references, symbols, hover) return in <1s after indexing
+- 99.7% goto-definition coverage (tested on 300K+ methods)
+- 100% parse success rate on 100K+ real smali files
+- 18 KB memory per indexed file (string-interned)
+- Indexed 119K smali files in ~30–36s (warm), ~40s (cold)
+- Indexed 27K smali files in ~6s
+
+## Building
+
+Requires Java 17+ and Gradle 8.8+.
+
+```bash
+./gradlew shadowJar
+```
+
+Output: `build/libs/smali-lsp-all.jar`
 
 ## Architecture
 
 ```
-ANTLR4 Grammar → SmaliParser → ASTBuilder → WorkspaceIndex → LSP Providers
+ANTLR4 Grammar → SmaliParser → ASTBuilder → WorkspaceIndex → LSP/MCP Providers
                                                 ↑
                                     WorkspaceScanner (parallel)
 ```
 
 - **Parser**: ANTLR4 with SLL prediction mode (no ambiguities in smali grammar)
-- **Index**: Thread-safe `ConcurrentHashMap` with O(1) lookups and bidirectional class-URI maps
+- **Index**: Thread-safe `ConcurrentHashMap` with O(1) lookups, bidirectional class-URI maps, string literal index
 - **Providers**: Position-aware symbol extraction — correctly resolves which of multiple symbols on a line the cursor targets
 - **Scanner**: Parallel file processing with smart APKTool project detection
 
@@ -160,7 +183,7 @@ ANTLR4 Grammar → SmaliParser → ASTBuilder → WorkspaceIndex → LSP Provide
 ./gradlew test --tests "*.unit.*"
 ./gradlew test --tests "*.integration.*"
 ./gradlew test --tests "*.regression.*"
-./gradlew test --tests "*.performance.*"
+./gradlew test --tests "*.stress.*"
 ```
 
 ## License
