@@ -7,6 +7,7 @@ import org.eclipse.lsp4j.services.*
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.indexer.WorkspaceScanner
 import xyz.surendrajat.smalilsp.providers.CallHierarchyProvider
+import xyz.surendrajat.smalilsp.providers.CodeLensProvider
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import xyz.surendrajat.smalilsp.providers.HoverProvider
 import xyz.surendrajat.smalilsp.providers.ReferenceProvider
@@ -113,6 +114,7 @@ class SmaliLanguageServer : LanguageServer {
     private val referenceProvider = ReferenceProvider(index)
     private val callHierarchyProvider = CallHierarchyProvider(index)
     private val typeHierarchyProvider = TypeHierarchyProvider(index)
+    private val codeLensProvider = CodeLensProvider(index)
 
     // Text document service
     private val textDocumentService = SmaliTextDocumentService(
@@ -121,7 +123,8 @@ class SmaliLanguageServer : LanguageServer {
         hoverProvider,
         referenceProvider,
         callHierarchyProvider,
-        typeHierarchyProvider
+        typeHierarchyProvider,
+        codeLensProvider
     )
     
     // Workspace service
@@ -232,6 +235,9 @@ class SmaliLanguageServer : LanguageServer {
 
         // Type hierarchy
         capabilities.setTypeHierarchyProvider(true)
+
+        // Code lens
+        capabilities.setCodeLensProvider(CodeLensOptions(true))
 
         val serverInfo = ServerInfo("Smali Language Server", "1.0.0")
         return InitializeResult(capabilities, serverInfo)

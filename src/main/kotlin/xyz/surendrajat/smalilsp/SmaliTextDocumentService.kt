@@ -7,6 +7,7 @@ import org.eclipse.lsp4j.services.TextDocumentService
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.parser.SmaliParser
 import xyz.surendrajat.smalilsp.providers.CallHierarchyProvider
+import xyz.surendrajat.smalilsp.providers.CodeLensProvider
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import xyz.surendrajat.smalilsp.providers.DiagnosticProvider
 import xyz.surendrajat.smalilsp.providers.HoverProvider
@@ -35,7 +36,8 @@ class SmaliTextDocumentService(
     private val hoverProvider: HoverProvider,
     private val referenceProvider: ReferenceProvider,
     private val callHierarchyProvider: CallHierarchyProvider,
-    private val typeHierarchyProvider: TypeHierarchyProvider
+    private val typeHierarchyProvider: TypeHierarchyProvider,
+    private val codeLensProvider: CodeLensProvider
 ) : TextDocumentService {
     
     private val logger = LoggerFactory.getLogger(SmaliTextDocumentService::class.java)
@@ -331,6 +333,30 @@ class SmaliTextDocumentService(
             } catch (e: Exception) {
                 logger.error("Error in typeHierarchySubtypes", e)
                 mutableListOf()
+            }
+        }
+    }
+
+    override fun codeLens(params: CodeLensParams): CompletableFuture<MutableList<out CodeLens>> {
+        val uri = params.textDocument.uri
+
+        return CompletableFuture.supplyAsync {
+            try {
+                codeLensProvider.provideCodeLenses(uri).toMutableList()
+            } catch (e: Exception) {
+                logger.error("Error in codeLens for $uri", e)
+                mutableListOf()
+            }
+        }
+    }
+
+    override fun resolveCodeLens(params: CodeLens): CompletableFuture<CodeLens> {
+        return CompletableFuture.supplyAsync {
+            try {
+                codeLensProvider.resolveCodeLens(params)
+            } catch (e: Exception) {
+                logger.error("Error in resolveCodeLens", e)
+                params
             }
         }
     }
