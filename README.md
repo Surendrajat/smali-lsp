@@ -10,6 +10,9 @@ A Language Server Protocol (LSP) server with built-in MCP server for [Smali](htt
 - **Find References** — cross-file xrefs with inheritance-aware polymorphic matching
 - **Hover** — method signatures, field types, class info, SDK class detection
 - **Call Hierarchy** — incoming/outgoing call graphs for any method
+- **Type Hierarchy** — supertypes/subtypes navigation for classes
+- **Code Lens** — inline reference counts on methods and fields
+- **Completion** — class names, method/field members, opcodes
 - **Document Symbols** — class outline with methods and fields
 - **Workspace Symbols** — fuzzy search across the entire codebase
 - **Diagnostics** — syntax errors and unresolved class references
@@ -36,6 +39,7 @@ Built-in [MCP](https://modelcontextprotocol.io/) server for full semantic unders
 | `smali_search_strings`   | Search const-string literals by substring                                        |
 | `smali_call_graph`       | Incoming/outgoing call graph for a method                                        |
 | `smali_xref_summary`     | Full cross-reference report (subclasses, implementors, callers, field accessors) |
+| `smali_type_hierarchy`   | Supertypes and subtypes for a class (inheritance chain)                          |
 
 </details>
 
