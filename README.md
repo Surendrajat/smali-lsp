@@ -27,7 +27,7 @@ Built-in [MCP](https://modelcontextprotocol.io/) server for full semantic unders
 The server communicates over **stdio** in standard LSP protocol — no daemon, no port, just stdio:
 
 ```bash
-java -jar smali-lsp-all.jar
+java -jar smali-lsp.jar
 ```
 
 Configure your editor's LSP client to launch this command for `.smali` files. The server will automatically index the workspace on startup.
@@ -42,7 +42,7 @@ local configs = require('lspconfig.configs')
 if not configs.smali_lsp then
   configs.smali_lsp = {
     default_config = {
-      cmd = { 'java', '-jar', '/path/to/smali-lsp-all.jar' },
+      cmd = { 'java', '-jar', '/path/to/smali-lsp.jar' },
       filetypes = { 'smali' },
       root_dir = function(fname)
         return lspconfig.util.root_pattern('AndroidManifest.xml', 'apktool.yml', '.git')(fname)
@@ -69,7 +69,7 @@ language-servers = ["smali-lsp"]
 
 [language-server.smali-lsp]
 command = "java"
-args = ["-jar", "/path/to/smali-lsp-all.jar"]
+args = ["-jar", "/path/to/smali-lsp.jar"]
 ```
 
 </details>
@@ -80,7 +80,7 @@ args = ["-jar", "/path/to/smali-lsp-all.jar"]
 ```elisp
 (with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
-               '(smali-mode . ("java" "-jar" "/path/to/smali-lsp-all.jar"))))
+               '(smali-mode . ("java" "-jar" "/path/to/smali-lsp.jar"))))
 ```
 
 </details>
@@ -95,7 +95,7 @@ Extension not yet published. Use the MCP server (below) for VS Code + AI agent w
 ### MCP Server
 
 ```bash
-java -jar smali-lsp-all.jar --mcp
+java -jar smali-lsp.jar --mcp
 ```
 
 Runs as an [MCP](https://modelcontextprotocol.io/) server over stdio, exposing smali analysis tools to AI agents (Claude, Cursor, etc.).
@@ -107,7 +107,7 @@ Add to your MCP config (`.vscode/mcp.json`,`claude_desktop_config.json`, Cursor 
   "mcpServers": {
     "smali-mcp": {
       "command": "java",
-      "args": ["-jar", "/path/to/smali-lsp-all.jar", "--mcp"]
+      "args": ["-jar", "/path/to/smali-lsp.jar", "--mcp"]
     }
   }
 }
@@ -158,7 +158,7 @@ Requires Java 17+ and Gradle 8.8+.
 ./gradlew shadowJar
 ```
 
-Output: `build/libs/smali-lsp-all.jar`
+Output: `build/libs/smali-lsp.jar`
 
 ## Architecture
 

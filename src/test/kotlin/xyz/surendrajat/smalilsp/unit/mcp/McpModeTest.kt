@@ -827,7 +827,7 @@ class McpModeTest {
 
     private fun startMcpProcess(): Process {
         val jarFile = File("build/libs").listFiles()
-            ?.filter { it.name.startsWith("smali-lsp") && it.name.endsWith("-all.jar") }
+            ?.filter { it.name.startsWith("smali-lsp") && it.name.endsWith(".jar") }
             ?.maxByOrNull { it.lastModified() }
         assumeTrue(jarFile != null, "LSP jar not found — run './gradlew shadowJar' first, skipping MCP tests")
 

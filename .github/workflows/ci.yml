@@ -29,8 +29,8 @@ jobs:
       - name: Upload JAR
         uses: actions/upload-artifact@v7
         with:
-          name: smali-lsp-all
-          path: build/libs/smali-lsp-*-all.jar
+          name: smali-lsp
+          path: build/libs/smali-lsp-*.jar
           archive: false
 
   test:
@@ -96,5 +96,5 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          files: build/libs/smali-lsp-*-all.jar
+          files: build/libs/smali-lsp-*.jar
           generate_release_notes: true

@@ -139,7 +139,7 @@ tasks.jar {
 
 tasks.shadowJar {
     archiveBaseName.set("smali-lsp")
-    archiveClassifier.set("all")
+    archiveClassifier.set("")
     archiveVersion.set("1.1.0")
 
     manifest {
