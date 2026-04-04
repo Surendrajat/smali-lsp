@@ -26,8 +26,8 @@ import kotlinx.coroutines.runBlocking
  * - Provides goto definition, hover, find references, diagnostics
  *
  * Usage:
- *   java -jar smali-lsp.jar       (LSP mode - IDE integration)
- *   java -jar smali-lsp.jar --mcp (MCP server - AI agent integration)
+ *   java -jar smali-lsp.jar --lsp  (LSP mode - IDE integration)
+ *   java -jar smali-lsp.jar --mcp  (MCP server - AI agent integration)
  */
 data class VersionInfo(val version: String, val commit: String, val buildTime: String)
 
@@ -45,31 +45,53 @@ private fun loadVersionInfo(): VersionInfo {
 }
 
 fun main(args: Array<String>) {
-    if (args.isNotEmpty()) {
-        when (args[0]) {
-            "--version" -> {
-                val info = loadVersionInfo()
-                println("smali-lsp v${info.version}+${info.commit} (built ${info.buildTime})")
-                return
-            }
-            "--mcp" -> {
-                McpMode().run()
-                return
-            }
+    val command = args.firstOrNull() ?: "--help"
+
+    when (command) {
+        "--lsp" -> startLsp()
+        "--mcp" -> McpMode().run()
+        "--version", "-v" -> {
+            val info = loadVersionInfo()
+            println("smali-lsp v${info.version}+${info.commit} (built ${info.buildTime})")
+        }
+        "--help", "-h" -> printUsage()
+        else -> {
+            System.err.println("Unknown option: $command")
+            printUsage()
+            System.exit(1)
         }
     }
+}
 
+private fun printUsage() {
+    val info = loadVersionInfo()
+    println("""
+        smali-lsp v${info.version} — Language Server & MCP server for Smali
+
+        Usage: java -jar smali-lsp.jar <mode>
+
+        Modes:
+          --lsp        Start LSP server over stdio (for IDE integration)
+          --mcp        Start MCP server over stdio (for AI agent integration)
+
+        Options:
+          --version    Show version info
+          --help       Show this help message
+    """.trimIndent())
+}
+
+private fun startLsp() {
     // Configure Java Util Logging to use our properties file
     // This prevents LSP4J from logging to stdout which corrupts LSP protocol
-    System.setProperty("java.util.logging.config.file", 
+    System.setProperty("java.util.logging.config.file",
         SmaliLanguageServer::class.java.getResource("/logging.properties")?.path ?: "")
-    
+
     val server = SmaliLanguageServer()
     val launcher = LSPLauncher.createServerLauncher(server, System.`in`, System.out)
-    
+
     val client = launcher.remoteProxy
     server.connect(client)
-    
+
     // Start listening - blocks until connection closes
     launcher.startListening()
 }

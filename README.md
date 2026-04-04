@@ -27,7 +27,7 @@ Built-in [MCP](https://modelcontextprotocol.io/) server for full semantic unders
 The server communicates over **stdio** in standard LSP protocol — no daemon, no port, just stdio:
 
 ```bash
-java -jar smali-lsp.jar
+java -jar smali-lsp.jar --lsp
 ```
 
 Configure your editor's LSP client to launch this command for `.smali` files. The server will automatically index the workspace on startup.
@@ -42,7 +42,7 @@ local configs = require('lspconfig.configs')
 if not configs.smali_lsp then
   configs.smali_lsp = {
     default_config = {
-      cmd = { 'java', '-jar', '/path/to/smali-lsp.jar' },
+      cmd = { 'java', '-jar', '/path/to/smali-lsp.jar', '--lsp' },
       filetypes = { 'smali' },
       root_dir = function(fname)
         return lspconfig.util.root_pattern('AndroidManifest.xml', 'apktool.yml', '.git')(fname)
@@ -69,7 +69,7 @@ language-servers = ["smali-lsp"]
 
 [language-server.smali-lsp]
 command = "java"
-args = ["-jar", "/path/to/smali-lsp.jar"]
+args = ["-jar", "/path/to/smali-lsp.jar", "--lsp"]
 ```
 
 </details>
@@ -80,7 +80,7 @@ args = ["-jar", "/path/to/smali-lsp.jar"]
 ```elisp
 (with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
-               '(smali-mode . ("java" "-jar" "/path/to/smali-lsp.jar"))))
+               '(smali-mode . ("java" "-jar" "/path/to/smali-lsp.jar" "--lsp"))))
 ```
 
 </details>
