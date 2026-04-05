@@ -51,7 +51,7 @@ Built-in [MCP](https://modelcontextprotocol.io/) server for full semantic unders
 The server communicates over **stdio** in standard LSP protocol — no daemon, no port, just stdio:
 
 ```bash
-java -jar smali-lsp.jar --lsp
+java -jar smali-lsp.jar lsp
 ```
 
 Configure your editor's LSP client to launch this command for `.smali` files. The server will automatically index the workspace on startup.
@@ -66,7 +66,7 @@ local configs = require('lspconfig.configs')
 if not configs.smali_lsp then
   configs.smali_lsp = {
     default_config = {
-      cmd = { 'java', '-jar', '/path/to/smali-lsp.jar', '--lsp' },
+      cmd = { 'java', '-jar', '/path/to/smali-lsp.jar', 'lsp' },
       filetypes = { 'smali' },
       root_dir = function(fname)
         return lspconfig.util.root_pattern('AndroidManifest.xml', 'apktool.yml', '.git')(fname)
@@ -93,7 +93,7 @@ language-servers = ["smali-lsp"]
 
 [language-server.smali-lsp]
 command = "java"
-args = ["-jar", "/path/to/smali-lsp.jar", "--lsp"]
+args = ["-jar", "/path/to/smali-lsp.jar", "lsp"]
 ```
 
 </details>
@@ -104,7 +104,7 @@ args = ["-jar", "/path/to/smali-lsp.jar", "--lsp"]
 ```elisp
 (with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
-               '(smali-mode . ("java" "-jar" "/path/to/smali-lsp.jar" "--lsp"))))
+               '(smali-mode . ("java" "-jar" "/path/to/smali-lsp.jar" "lsp"))))
 ```
 
 </details>
@@ -119,7 +119,7 @@ Extension not yet published. Use the MCP server (below) for VS Code + AI agent w
 ### MCP Server
 
 ```bash
-java -jar smali-lsp.jar --mcp
+java -jar smali-lsp.jar mcp
 ```
 
 Runs as an [MCP](https://modelcontextprotocol.io/) server over stdio, exposing smali analysis tools to AI agents (Claude, Cursor, etc.).
@@ -131,7 +131,7 @@ Add to your MCP config (`.vscode/mcp.json`,`claude_desktop_config.json`, Cursor 
   "mcpServers": {
     "smali-mcp": {
       "command": "java",
-      "args": ["-jar", "/path/to/smali-lsp.jar", "--mcp"]
+      "args": ["-jar", "/path/to/smali-lsp.jar", "mcp"]
     }
   }
 }

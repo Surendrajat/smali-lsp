@@ -40,14 +40,14 @@ import java.io.File
  * to AI agents (Claude, Cursor, etc.) over stdio.
  *
  * Usage:
- *   java -jar smali-lsp.jar --mcp
+ *   java -jar smali-lsp.jar mcp
  *
  * MCP config (claude_desktop_config.json / cursor settings):
  *   {
  *     "mcpServers": {
  *       "smali-lsp": {
  *         "command": "java",
- *         "args": ["-jar", "/path/to/smali-lsp.jar", "--mcp"]
+ *         "args": ["-jar", "/path/to/smali-lsp.jar", "mcp"]
  *       }
  *     }
  *   }

@@ -35,8 +35,8 @@ import kotlinx.coroutines.runBlocking
  * - Provides goto definition, hover, find references, diagnostics
  *
  * Usage:
- *   java -jar smali-lsp.jar --lsp  (LSP mode - IDE integration)
- *   java -jar smali-lsp.jar --mcp  (MCP server - AI agent integration)
+ *   java -jar smali-lsp.jar lsp  (LSP mode - IDE integration)
+ *   java -jar smali-lsp.jar mcp  (MCP server - AI agent integration)
  */
 data class VersionInfo(val version: String, val commit: String, val buildTime: String)
 
@@ -55,22 +55,22 @@ private fun loadVersionInfo(): VersionInfo {
 
 fun main(args: Array<String>) {
     val verbose = args.contains("--verbose")
-    val command = args.firstOrNull { !it.startsWith("--verbose") } ?: "--help"
+    val command = args.firstOrNull { it != "--verbose" } ?: "help"
 
     if (verbose) {
         enableFileLogging()
     }
 
     when (command) {
-        "--lsp" -> startLsp()
-        "--mcp" -> McpMode().run()
+        "lsp" -> startLsp()
+        "mcp" -> McpMode().run()
         "--version", "-v" -> {
             val info = loadVersionInfo()
             println("smali-lsp v${info.version}+${info.commit} (built ${info.buildTime})")
         }
-        "--help", "-h" -> printUsage()
+        "help", "--help", "-h" -> printUsage()
         else -> {
-            System.err.println("Unknown option: $command")
+            System.err.println("Unknown command: $command")
             printUsage()
             System.exit(1)
         }
@@ -114,11 +114,11 @@ private fun printUsage() {
     println("""
         smali-lsp v${info.version} — Language Server & MCP server for Smali
 
-        Usage: java -jar smali-lsp.jar <mode> [options]
+        Usage: java -jar smali-lsp.jar <command> [options]
 
-        Modes:
-          --lsp        Start LSP server over stdio (for IDE integration)
-          --mcp        Start MCP server over stdio (for AI agent integration)
+        Commands:
+          lsp          Start LSP server over stdio (for IDE integration)
+          mcp          Start MCP server over stdio (for AI agent integration)
 
         Options:
           --verbose    Enable file logging (smali-lsp.log in current directory)

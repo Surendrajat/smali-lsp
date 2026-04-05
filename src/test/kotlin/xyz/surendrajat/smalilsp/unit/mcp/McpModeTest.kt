@@ -14,7 +14,7 @@ import kotlin.concurrent.thread
 /**
  * Integration tests for McpMode (MCP server over JSON-RPC 2.0 stdio).
  *
- * Spawns the JAR with --mcp and tests the full MCP lifecycle:
+ * Spawns the JAR with `mcp` subcommand and tests the full MCP lifecycle:
  * - Initialization handshake (initialize -> initialized)
  * - Tool discovery (tools/list)
  * - Tool execution (tools/call) for all 8 tools
@@ -833,7 +833,7 @@ class McpModeTest {
         assumeTrue(jarFile != null, "LSP jar not found — run './gradlew shadowJar' first, skipping MCP tests")
 
         return ProcessBuilder(
-            "java", "-jar", jarFile!!.absolutePath, "--mcp"
+            "java", "-jar", jarFile!!.absolutePath, "mcp"
         ).start()
     }
 
