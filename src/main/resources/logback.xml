@@ -1,17 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <!-- Disable status messages to avoid contaminating stdout/stderr used for LSP -->
     <statusListener class="ch.qos.logback.core.status.NopStatusListener" />
-    
-    <!-- Log to file only - stdout/stderr are used for LSP JSON-RPC protocol -->
-    <appender name="FILE" class="ch.qos.logback.core.FileAppender">
-        <file>smali-lsp.log</file>
-        <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
-        </encoder>
-    </appender>
 
-    <root level="info">
-        <appender-ref ref="FILE" />
-    </root>
+    <!-- Logging disabled by default. Pass verbose flag to enable file logging. -->
+    <root level="OFF" />
 </configuration>

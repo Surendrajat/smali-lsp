@@ -16,6 +16,10 @@ import xyz.surendrajat.smalilsp.providers.ReferenceProvider
 import xyz.surendrajat.smalilsp.providers.TypeHierarchyProvider
 import xyz.surendrajat.smalilsp.cli.McpMode
 import org.slf4j.LoggerFactory
+import ch.qos.logback.classic.LoggerContext
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.encoder.PatternLayoutEncoder
+import ch.qos.logback.core.FileAppender
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -50,7 +54,12 @@ private fun loadVersionInfo(): VersionInfo {
 }
 
 fun main(args: Array<String>) {
-    val command = args.firstOrNull() ?: "--help"
+    val verbose = args.contains("--verbose")
+    val command = args.firstOrNull { !it.startsWith("--verbose") } ?: "--help"
+
+    if (verbose) {
+        enableFileLogging()
+    }
 
     when (command) {
         "--lsp" -> startLsp()
@@ -68,28 +77,62 @@ fun main(args: Array<String>) {
     }
 }
 
+/**
+ * Enable file logging (logback + JUL) when --verbose is passed.
+ * By default, logging is OFF to avoid creating log files in CWD.
+ */
+private fun enableFileLogging() {
+    // Configure Logback programmatically
+    val loggerContext = LoggerFactory.getILoggerFactory() as LoggerContext
+
+    val encoder = PatternLayoutEncoder()
+    encoder.context = loggerContext
+    encoder.pattern = "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    encoder.start()
+
+    val fileAppender = FileAppender<ch.qos.logback.classic.spi.ILoggingEvent>()
+    fileAppender.context = loggerContext
+    fileAppender.name = "FILE"
+    fileAppender.file = "smali-lsp.log"
+    fileAppender.encoder = encoder
+    fileAppender.start()
+
+    val rootLogger = loggerContext.getLogger(ch.qos.logback.classic.Logger.ROOT_LOGGER_NAME)
+    rootLogger.level = Level.INFO
+    rootLogger.addAppender(fileAppender)
+
+    // Configure JUL for LSP4J
+    val julHandler = java.util.logging.FileHandler("smali-lsp-jul.log", 1_000_000, 1, true)
+    julHandler.formatter = java.util.logging.SimpleFormatter()
+    val julRoot = java.util.logging.Logger.getLogger("")
+    julRoot.addHandler(julHandler)
+    julRoot.level = java.util.logging.Level.WARNING
+}
+
 private fun printUsage() {
     val info = loadVersionInfo()
     println("""
         smali-lsp v${info.version} — Language Server & MCP server for Smali
 
-        Usage: java -jar smali-lsp.jar <mode>
+        Usage: java -jar smali-lsp.jar <mode> [options]
 
         Modes:
           --lsp        Start LSP server over stdio (for IDE integration)
           --mcp        Start MCP server over stdio (for AI agent integration)
 
         Options:
+          --verbose    Enable file logging (smali-lsp.log in current directory)
           --version    Show version info
           --help       Show this help message
     """.trimIndent())
 }
 
 private fun startLsp() {
-    // Configure Java Util Logging to use our properties file
-    // This prevents LSP4J from logging to stdout which corrupts LSP protocol
-    System.setProperty("java.util.logging.config.file",
-        SmaliLanguageServer::class.java.getResource("/logging.properties")?.path ?: "")
+    // Load JUL properties to suppress default ConsoleHandler (would corrupt LSP stdio)
+    val julStream = SmaliLanguageServer::class.java.getResourceAsStream("/logging.properties")
+    if (julStream != null) {
+        julStream.use { java.util.logging.LogManager.getLogManager().readConfiguration(it) }
+    }
 
     val server = SmaliLanguageServer()
     val launcher = LSPLauncher.createServerLauncher(server, System.`in`, System.out)
@@ -142,7 +185,7 @@ class SmaliLanguageServer : LanguageServer {
         this.client = client
         textDocumentService.connect(client)
     }
-
+    
     private var pendingWorkspaceFolders: List<WorkspaceFolder> = emptyList()
 
     /**
