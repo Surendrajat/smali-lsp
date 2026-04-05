@@ -2,6 +2,7 @@ package xyz.surendrajat.smalilsp
 
 import org.eclipse.lsp4j.*
 import org.eclipse.lsp4j.jsonrpc.Launcher
+import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.launch.LSPLauncher
 import org.eclipse.lsp4j.services.*
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
@@ -16,6 +17,7 @@ import xyz.surendrajat.smalilsp.providers.TypeHierarchyProvider
 import xyz.surendrajat.smalilsp.cli.McpMode
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import kotlinx.coroutines.runBlocking
 
@@ -140,30 +142,21 @@ class SmaliLanguageServer : LanguageServer {
         this.client = client
         textDocumentService.connect(client)
     }
-    
+
+    private var pendingWorkspaceFolders: List<WorkspaceFolder> = emptyList()
+
     /**
      * Initialize server.
      * Client sends workspace folders and capabilities.
+     * Indexing is deferred to initialized() so the client can receive progress notifications.
      */
     override fun initialize(params: InitializeParams): CompletableFuture<InitializeResult> {
         logger.info("Initializing Smali Language Server")
         logger.info("Client: ${params.clientInfo?.name} ${params.clientInfo?.version}")
         logger.info("Workspace folders: ${params.workspaceFolders?.size ?: 0}")
-        
-        // Index workspace folders
-        val workspaceFolders = params.workspaceFolders ?: emptyList()
-        if (workspaceFolders.isNotEmpty()) {
-            return CompletableFuture.supplyAsync {
-                try {
-                    indexWorkspace(workspaceFolders)
-                    createInitializeResult()
-                } catch (e: Exception) {
-                    logger.error("Failed to initialize workspace", e)
-                    createInitializeResult()
-                }
-            }
-        }
-        
+
+        pendingWorkspaceFolders = params.workspaceFolders ?: emptyList()
+
         return CompletableFuture.completedFuture(createInitializeResult())
     }
     
@@ -172,33 +165,54 @@ class SmaliLanguageServer : LanguageServer {
      */
     private fun indexWorkspace(folders: List<WorkspaceFolder>) = runBlocking {
         logger.info("Indexing ${folders.size} workspace folder(s)...")
-        
+
+        val progressToken = Either.forLeft<String, Int>("smali-indexing-${UUID.randomUUID()}")
+
+        // Create progress on client side
+        client.createProgress(WorkDoneProgressCreateParams().apply {
+            token = progressToken
+        }).get()
+
+        // Begin progress
+        client.notifyProgress(ProgressParams(progressToken, Either.forLeft(
+            WorkDoneProgressBegin().apply {
+                title = "Indexing Smali"
+                percentage = 0
+                cancellable = false
+            }
+        )))
+
         for (folder in folders) {
             try {
                 val uri = folder.uri
                 val dir = File(java.net.URI(uri))
-                
+
                 if (dir.exists() && dir.isDirectory) {
                     logger.info("Scanning: ${dir.absolutePath}")
-                    
+
                     val startTime = System.currentTimeMillis()
+                    var lastReportedPercent = 0
                     val result = scanner.scanDirectory(dir) { processed, total ->
-                        if (processed % 1000 == 0 || processed == total) {
-                            val percent = processed * 100 / total
+                        val percent = if (total > 0) processed * 100 / total else 0
+                        if (percent > lastReportedPercent || processed == total) {
+                            lastReportedPercent = percent
                             logger.info("Indexing: $processed/$total ($percent%)")
+                            client.notifyProgress(ProgressParams(progressToken, Either.forLeft(
+                                WorkDoneProgressReport().apply {
+                                    message = "$processed / $total files"
+                                    percentage = percent
+                                }
+                            )))
                         }
                     }
-                    
+
                     val duration = System.currentTimeMillis() - startTime
                     val stats = index.getStats()
-                    
+
                     logger.info("Indexed ${result.filesSucceeded} files in ${duration}ms")
                     logger.info("  Rate: ${result.filesPerSecond} files/sec")
-                    logger.info("  Classes: ${stats.classes}")
-                    logger.info("  Methods: ${stats.methods}")
-                    logger.info("  Fields: ${stats.fields}")
-                    logger.info("  Strings: ${stats.strings}")
-                    
+                    logger.info("  Classes: ${stats.classes}, Methods: ${stats.methods}, Fields: ${stats.fields}, Strings: ${stats.strings}")
+
                     if (result.filesFailed > 0) {
                         logger.warn("  Failed: ${result.filesFailed} files")
                     }
@@ -207,6 +221,13 @@ class SmaliLanguageServer : LanguageServer {
                 logger.error("Failed to index folder: ${folder.uri}", e)
             }
         }
+
+        // End progress
+        client.notifyProgress(ProgressParams(progressToken, Either.forLeft(
+            WorkDoneProgressEnd().apply {
+                message = "Indexing complete"
+            }
+        )))
     }
     
     /**
@@ -250,10 +271,20 @@ class SmaliLanguageServer : LanguageServer {
     }
     
     /**
-     * Called after initialize response.
+     * Called after initialize response. Client is now ready to receive notifications.
+     * Trigger workspace indexing here so we can send progress updates.
      */
     override fun initialized(params: InitializedParams) {
-        logger.info("Server initialized and ready")
+        logger.info("Server initialized, starting workspace indexing...")
+        if (pendingWorkspaceFolders.isNotEmpty()) {
+            CompletableFuture.runAsync {
+                try {
+                    indexWorkspace(pendingWorkspaceFolders)
+                } catch (e: Exception) {
+                    logger.error("Failed to index workspace", e)
+                }
+            }
+        }
     }
     
     /**

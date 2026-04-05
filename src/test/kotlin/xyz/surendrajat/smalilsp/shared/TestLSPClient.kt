@@ -54,6 +54,14 @@ class TestLSPClient : LanguageClient {
         receivedTelemetry.add(obj)
     }
     
+    override fun createProgress(params: WorkDoneProgressCreateParams): CompletableFuture<Void> {
+        return CompletableFuture.completedFuture(null)
+    }
+    
+    override fun notifyProgress(params: ProgressParams) {
+        receivedProgress.add(params)
+    }
+    
     // ===== Helper methods for tests =====
     
     /**
