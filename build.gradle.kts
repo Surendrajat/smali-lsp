@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "xyz.surendrajat"
-version = "1.2.0"
+version = "1.3.0"
 
 repositories {
     mavenCentral()
@@ -136,7 +136,7 @@ tasks.jar {
 tasks.shadowJar {
     archiveBaseName.set("smali-lsp")
     archiveClassifier.set("")
-    archiveVersion.set("1.2.0")
+    archiveVersion.set("1.3.0")
 
     manifest {
         attributes["Main-Class"] = "xyz.surendrajat.smalilsp.MainKt"
