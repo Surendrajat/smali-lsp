@@ -19,6 +19,7 @@ apk*
 *.bak*
 *.md
 !README.md
+!CHANGELOG.md
 *.sh
 *.txt
 !.github/

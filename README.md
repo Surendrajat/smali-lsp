@@ -21,7 +21,7 @@ A Language Server Protocol (LSP) server with built-in MCP server for [Smali](htt
 
 ### MCP Server (for AI agents)
 
-Built-in [MCP](https://modelcontextprotocol.io/) server for full semantic understanding of decompiled APKs by AI agents — various tools covering indexing, navigation, search, call graphs, and cross-references.
+Built-in [MCP](https://modelcontextprotocol.io) server for full semantic understanding of decompiled APKs by AI agents — various tools covering indexing, navigation, search, call graphs, and cross-references.
 
 <details>
 <summary>Available tools</summary>
@@ -55,6 +55,14 @@ java -jar smali-lsp.jar lsp
 ```
 
 Configure your editor's LSP client to launch this command for `.smali` files. The server will automatically index the workspace on startup.
+
+<details>
+<summary>VS Code (via APKLab)</summary>
+
+[APKLab](https://github.com/APKLab/APKLab) integrates smali-lsp automatically. Install APKLab -> Run update tools command and the LSP starts when you open a `.smali` file.
+Alternatively, you can set `apklab.smaliLspPath` to your `smali-lsp.jar`, 
+
+</details>
 
 <details>
 <summary>Neovim (via nvim-lspconfig)</summary>
@@ -109,20 +117,13 @@ args = ["-jar", "/path/to/smali-lsp.jar", "lsp"]
 
 </details>
 
-<details>
-<summary>VS Code (WIP)</summary>
-
-Extension not yet published. Use the MCP server (below) for VS Code + AI agent workflows.
-
-</details>
-
 ### MCP Server
 
 ```bash
 java -jar smali-lsp.jar mcp
 ```
 
-Runs as an [MCP](https://modelcontextprotocol.io/) server over stdio, exposing smali analysis tools to AI agents (Claude, Cursor, etc.).
+Runs as an [MCP](https://modelcontextprotocol.io) server over stdio, exposing smali analysis tools to AI agents (Claude, Cursor, etc.).
 
 Add to your MCP config (`.vscode/mcp.json`,`claude_desktop_config.json`, Cursor settings, etc.):
 
