@@ -34,30 +34,38 @@ class CallHierarchyProvider(
 
     /**
      * Find all callers of the given method (incoming calls).
-     * Scans all indexed files for invoke instructions targeting this method.
+     * Uses reverse usage index — O(1) lookup instead of scanning all files.
      */
     fun incomingCalls(item: CallHierarchyItem): List<CallHierarchyIncomingCall> {
         val targetMethod = parseItemName(item.name)
         val targetClass = item.detail ?: return emptyList()
 
-        val results = mutableListOf<CallHierarchyIncomingCall>()
+        val usages = index.findMethodUsages(targetClass, targetMethod.first, targetMethod.second)
+        if (usages.isEmpty()) return emptyList()
 
-        for (file in index.getAllFiles()) {
-            for (method in file.methods) {
-                val callSites = method.instructions
-                    .filterIsInstance<InvokeInstruction>()
-                    .filter { it.className == targetClass && it.methodName == targetMethod.first && it.descriptor == targetMethod.second }
+        // Group usage locations by containing method
+        val callsByMethod = mutableMapOf<Pair<String, Range>, MutableList<Range>>()
 
-                if (callSites.isNotEmpty()) {
-                    val call = CallHierarchyIncomingCall()
-                    call.from = createItem(file, method)
-                    call.fromRanges = callSites.map { it.range }
-                    results.add(call)
-                }
-            }
+        for (loc in usages) {
+            val file = index.findFileByUri(loc.uri) ?: continue
+            val containingMethod = file.methods.find {
+                loc.range.start.line >= it.range.start.line &&
+                    loc.range.start.line <= it.range.end.line
+            } ?: continue
+
+            val key = Pair(file.classDefinition.name, containingMethod.range)
+            callsByMethod.getOrPut(key) { mutableListOf() }.add(loc.range)
         }
 
-        return results
+        return callsByMethod.mapNotNull { (key, ranges) ->
+            val file = index.findClass(key.first) ?: return@mapNotNull null
+            val method = file.methods.find { it.range == key.second } ?: return@mapNotNull null
+
+            CallHierarchyIncomingCall().apply {
+                from = createItem(file, method)
+                fromRanges = ranges
+            }
+        }
     }
 
     /**

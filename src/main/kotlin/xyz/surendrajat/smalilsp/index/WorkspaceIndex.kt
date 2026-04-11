@@ -1,11 +1,6 @@
 package xyz.surendrajat.smalilsp.index
 
-import xyz.surendrajat.smalilsp.core.ClassDefinition
-import xyz.surendrajat.smalilsp.core.ConstStringInstruction
-import xyz.surendrajat.smalilsp.core.FieldDefinition
-import xyz.surendrajat.smalilsp.core.MethodDefinition
-import xyz.surendrajat.smalilsp.core.SmaliFile
-import xyz.surendrajat.smalilsp.core.range
+import xyz.surendrajat.smalilsp.core.*
 import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.Range
@@ -55,6 +50,16 @@ class WorkspaceIndex {
     // Interface implementors: interface → direct implementors
     private val implementorsIndex = ConcurrentHashMap<String, MutableSet<String>>()
 
+    // Reverse usage indexes: symbol → all call/access sites across workspace
+    // Built during indexFile() — enables O(1) "Find References" instead of O(n) full scans.
+    // Keys use same format as methodSignature()/fieldSignature().
+    private val methodUsages = ConcurrentHashMap<String, MutableSet<Location>>()
+    private val fieldUsages = ConcurrentHashMap<String, MutableSet<Location>>()
+
+    // Class reference locations: className → all locations that reference it
+    // Includes: instruction targets, field type declarations, method signature types
+    private val classRefLocations = ConcurrentHashMap<String, MutableSet<Location>>()
+
     // Document content for open files (uri → content string)
     // Only populated for files open in the editor (didOpen/didChange)
     // Removed on didClose to bound memory to open editor tabs
@@ -62,28 +67,34 @@ class WorkspaceIndex {
     
     /**
      * Index a smali file. Thread-safe.
+     *
+     * On re-index (didChange), removes stale entries from ALL index maps
+     * before adding new ones — prevents ghost references to renamed/deleted symbols.
      */
     fun indexFile(file: SmaliFile) {
         val className = file.classDefinition.name
-        
+
+        // Clean up old entries if re-indexing (didChange)
+        files[className]?.let { oldFile -> removeOldEntries(oldFile) }
+
         // Store file
         files[className] = file
         classToUri[className] = file.uri
         uriToClass[file.uri] = className
-        
-        // Index methods
+
+        // Index method declarations
         file.methods.forEach { method ->
             val signature = methodSignature(className, method.name, method.descriptor)
             methodLocations.computeIfAbsent(signature) { ConcurrentHashMap.newKeySet() }
                 .add(Location(file.uri, method.range))
         }
-        
-        // Index fields
+
+        // Index field declarations
         file.fields.forEach { field ->
             val signature = fieldSignature(className, field.name)
             fieldLocations[signature] = Location(file.uri, field.range)
         }
-        
+
         // Track superclass usage + subclass hierarchy
         file.classDefinition.superClass?.let { superClass ->
             classUsages.computeIfAbsent(superClass) { ConcurrentHashMap.newKeySet() }
@@ -100,8 +111,135 @@ class WorkspaceIndex {
                 .add(className)
         }
 
+        // Build reverse usage indexes from instructions
+        file.methods.forEach { method ->
+            method.instructions.forEach { instr ->
+                when (instr) {
+                    is InvokeInstruction -> {
+                        methodUsages.computeIfAbsent(
+                            methodSignature(instr.className, instr.methodName, instr.descriptor)
+                        ) { ConcurrentHashMap.newKeySet() }.add(Location(file.uri, instr.range))
+                        classRefLocations.computeIfAbsent(instr.className) { ConcurrentHashMap.newKeySet() }
+                            .add(Location(file.uri, instr.range))
+                    }
+                    is FieldAccessInstruction -> {
+                        fieldUsages.computeIfAbsent(
+                            fieldSignature(instr.className, instr.fieldName)
+                        ) { ConcurrentHashMap.newKeySet() }.add(Location(file.uri, instr.range))
+                        classRefLocations.computeIfAbsent(instr.className) { ConcurrentHashMap.newKeySet() }
+                            .add(Location(file.uri, instr.range))
+                    }
+                    is TypeInstruction -> {
+                        classRefLocations.computeIfAbsent(instr.className) { ConcurrentHashMap.newKeySet() }
+                            .add(Location(file.uri, instr.range))
+                    }
+                    is JumpInstruction, is ConstStringInstruction -> {
+                        // Labels are method-local; strings handled by lazy stringIndex
+                    }
+                }
+            }
+        }
+
+        // Index class references from field types
+        file.fields.forEach { field ->
+            extractClassFromType(field.type)?.let { refClass ->
+                classRefLocations.computeIfAbsent(refClass) { ConcurrentHashMap.newKeySet() }
+                    .add(Location(file.uri, field.range))
+            }
+        }
+
+        // Index class references from method signatures (parameters + return type)
+        file.methods.forEach { method ->
+            extractClassFromType(method.returnType)?.let { refClass ->
+                classRefLocations.computeIfAbsent(refClass) { ConcurrentHashMap.newKeySet() }
+                    .add(Location(file.uri, method.range))
+            }
+            method.parameters.forEach { param ->
+                extractClassFromType(param.type)?.let { refClass ->
+                    classRefLocations.computeIfAbsent(refClass) { ConcurrentHashMap.newKeySet() }
+                        .add(Location(file.uri, method.range))
+                }
+            }
+        }
+
         // Mark string index as stale (rebuilt lazily on next search)
         stringIndexDirty = true
+    }
+
+    /**
+     * Remove all index entries from a previously indexed file.
+     * Called before re-indexing to prevent stale references.
+     */
+    private fun removeOldEntries(oldFile: SmaliFile) {
+        val className = oldFile.classDefinition.name
+        val uri = oldFile.uri
+        // Remove method declarations
+        oldFile.methods.forEach { method ->
+            val sig = methodSignature(className, method.name, method.descriptor)
+            methodLocations[sig]?.removeIf { it.uri == uri }
+        }
+
+        // Remove field declarations
+        oldFile.fields.forEach { field ->
+            fieldLocations.remove(fieldSignature(className, field.name))
+        }
+
+        // Remove hierarchy entries
+        oldFile.classDefinition.superClass?.let { sc ->
+            classUsages[sc]?.remove(uri)
+            subclassIndex[sc]?.remove(className)
+        }
+        oldFile.classDefinition.interfaces.forEach { iface ->
+            classUsages[iface]?.remove(uri)
+            implementorsIndex[iface]?.remove(className)
+        }
+
+        // Remove reverse usage entries (instructions + field types + method signatures)
+        oldFile.methods.forEach { method ->
+            method.instructions.forEach { instr ->
+                when (instr) {
+                    is InvokeInstruction -> {
+                        val sig = methodSignature(instr.className, instr.methodName, instr.descriptor)
+                        methodUsages[sig]?.removeIf { it.uri == uri }
+                        classRefLocations[instr.className]?.removeIf { it.uri == uri }
+                    }
+                    is FieldAccessInstruction -> {
+                        val sig = fieldSignature(instr.className, instr.fieldName)
+                        fieldUsages[sig]?.removeIf { it.uri == uri }
+                        classRefLocations[instr.className]?.removeIf { it.uri == uri }
+                    }
+                    is TypeInstruction -> {
+                        classRefLocations[instr.className]?.removeIf { it.uri == uri }
+                    }
+                    else -> {}
+                }
+            }
+        }
+        oldFile.fields.forEach { field ->
+            extractClassFromType(field.type)?.let { refClass ->
+                classRefLocations[refClass]?.removeIf { it.uri == uri }
+            }
+        }
+        oldFile.methods.forEach { method ->
+            extractClassFromType(method.returnType)?.let { refClass ->
+                classRefLocations[refClass]?.removeIf { it.uri == uri }
+            }
+            method.parameters.forEach { param ->
+                extractClassFromType(param.type)?.let { refClass ->
+                    classRefLocations[refClass]?.removeIf { it.uri == uri }
+                }
+            }
+        }
+    }
+
+    /**
+     * Extract class name from a type descriptor, stripping array brackets.
+     * Returns null for primitive types.
+     * Example: "[Lcom/Foo;" → "Lcom/Foo;", "I" → null
+     */
+    private fun extractClassFromType(type: String): String? {
+        val base = type.trimStart('[')
+        return if (base.startsWith('L') && base.endsWith(';')) base else null
     }
     
     /**
@@ -255,10 +393,37 @@ class WorkspaceIndex {
     }
 
     /**
-     * Find all files that reference a class.
+     * Find all files that reference a class (inheritance/interface only).
      */
     fun findClassUsages(className: String): Set<String> {
         return classUsages[className] ?: emptySet()
+    }
+
+    // ========== Reverse Usage Index Queries ==========
+
+    /**
+     * Find all call sites for a method. O(1) lookup.
+     * Returns locations of all invoke instructions targeting this method signature.
+     */
+    fun findMethodUsages(className: String, methodName: String, descriptor: String): Set<Location> {
+        return methodUsages[methodSignature(className, methodName, descriptor)] ?: emptySet()
+    }
+
+    /**
+     * Find all access sites for a field. O(1) lookup.
+     * Returns locations of all iget/iput/sget/sput instructions targeting this field.
+     */
+    fun findFieldUsages(className: String, fieldName: String): Set<Location> {
+        return fieldUsages[fieldSignature(className, fieldName)] ?: emptySet()
+    }
+
+    /**
+     * Find all locations that reference a class. O(1) lookup.
+     * Includes: invoke targets, field access targets, type instructions,
+     * field type declarations, method parameter/return types.
+     */
+    fun findClassRefLocations(className: String): Set<Location> {
+        return classRefLocations[className] ?: emptySet()
     }
 
     /**
@@ -357,15 +522,23 @@ class WorkspaceIndex {
     }
     
     /**
+     * Get class name key set view. No copy — safe for concurrent iteration.
+     * Preferred over getAllClassNames() for iteration (avoids 118K-element list copy).
+     */
+    fun getClassNames(): Set<String> {
+        return files.keys
+    }
+
+    /**
      * Get all indexed class names (for comprehensive testing).
      * Returns a list copy to avoid concurrent modification issues.
      */
     fun getAllClassNames(): List<String> {
         return files.keys.toList()
     }
-    
+
     /**
-     * Get all indexed files (for find references).
+     * Get all indexed files (for workspace symbol search, MCP tools).
      * Returns a list copy to avoid concurrent modification issues.
      */
     fun getAllFiles(): List<SmaliFile> {
@@ -447,6 +620,9 @@ class WorkspaceIndex {
         stringIndexDirty = true
         subclassIndex.clear()
         implementorsIndex.clear()
+        methodUsages.clear()
+        fieldUsages.clear()
+        classRefLocations.clear()
         documentContents.clear()
     }
     

@@ -563,41 +563,30 @@ class McpMode {
 
             val classFile = index!!.findClass(className)
 
-            // Find subclasses and implementors
-            val subclasses = mutableListOf<String>()
-            val implementors = mutableListOf<String>()
-            for (file in index!!.getAllFiles()) {
-                if (file.classDefinition.superClass == className) {
-                    subclasses.add(file.classDefinition.name)
-                }
-                if (className in file.classDefinition.interfaces) {
-                    implementors.add(file.classDefinition.name)
+            // Find subclasses and implementors (O(1) index lookups)
+            val subclasses = index!!.getDirectSubclasses(className).toList()
+            val implementors = index!!.getDirectImplementors(className).toList()
+
+            // Find all method callers using reverse usage indexes
+            val methodCallers = mutableMapOf<String, MutableSet<String>>()
+            val classFileMethods = classFile?.methods ?: emptyList()
+            for (method in classFileMethods) {
+                val key = "${method.name}${method.descriptor}"
+                val usages = index!!.findMethodUsages(className, method.name, method.descriptor)
+                for (loc in usages) {
+                    val callerClass = index!!.findClassNameByUri(loc.uri) ?: continue
+                    methodCallers.computeIfAbsent(key) { mutableSetOf() }.add(callerClass)
                 }
             }
 
-            // Find all method callers (across all methods in this class)
-            val methodCallers = mutableMapOf<String, MutableSet<String>>()
+            // Find all field accessors using reverse usage indexes
             val fieldAccessors = mutableMapOf<String, MutableSet<String>>()
-            for (file in index!!.getAllFiles()) {
-                for (method in file.methods) {
-                    for (instr in method.instructions) {
-                        when (instr) {
-                            is xyz.surendrajat.smalilsp.core.InvokeInstruction -> {
-                                if (instr.className == className) {
-                                    val key = "${instr.methodName}${instr.descriptor}"
-                                    methodCallers.computeIfAbsent(key) { mutableSetOf() }
-                                        .add(file.classDefinition.name)
-                                }
-                            }
-                            is xyz.surendrajat.smalilsp.core.FieldAccessInstruction -> {
-                                if (instr.className == className) {
-                                    fieldAccessors.computeIfAbsent(instr.fieldName) { mutableSetOf() }
-                                        .add(file.classDefinition.name)
-                                }
-                            }
-                            else -> {}
-                        }
-                    }
+            val classFileFields = classFile?.fields ?: emptyList()
+            for (field in classFileFields) {
+                val usages = index!!.findFieldUsages(className, field.name)
+                for (loc in usages) {
+                    val accessorClass = index!!.findClassNameByUri(loc.uri) ?: continue
+                    fieldAccessors.computeIfAbsent(field.name) { mutableSetOf() }.add(accessorClass)
                 }
             }
 

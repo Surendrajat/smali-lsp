@@ -106,7 +106,7 @@ class CompletionProvider(
             position
         )
 
-        for (className in index.getAllClassNames()) {
+        for (className in index.getClassNames()) {
             val simpleName = ClassUtils.extractSimpleName(className)
             // Match against simple name or full path
             if (simpleName.lowercase().startsWith(normalizedPartial) ||

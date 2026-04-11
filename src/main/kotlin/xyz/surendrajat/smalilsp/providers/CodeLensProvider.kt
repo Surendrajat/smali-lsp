@@ -2,8 +2,6 @@ package xyz.surendrajat.smalilsp.providers
 
 import com.google.gson.JsonObject
 import org.eclipse.lsp4j.*
-import xyz.surendrajat.smalilsp.core.FieldAccessInstruction
-import xyz.surendrajat.smalilsp.core.InvokeInstruction
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 
 /**
@@ -81,31 +79,10 @@ class CodeLensProvider(
     }
 
     private fun countMethodReferences(className: String, methodName: String, descriptor: String): Int {
-        var count = 0
-        for (file in index.getAllFiles()) {
-            for (method in file.methods) {
-                count += method.instructions.count { instr ->
-                    instr is InvokeInstruction &&
-                        instr.className == className &&
-                        instr.methodName == methodName &&
-                        instr.descriptor == descriptor
-                }
-            }
-        }
-        return count
+        return index.findMethodUsages(className, methodName, descriptor).size
     }
 
     private fun countFieldReferences(className: String, fieldName: String): Int {
-        var count = 0
-        for (file in index.getAllFiles()) {
-            for (method in file.methods) {
-                count += method.instructions.count { instr ->
-                    instr is FieldAccessInstruction &&
-                        instr.className == className &&
-                        instr.fieldName == fieldName
-                }
-            }
-        }
-        return count
+        return index.findFieldUsages(className, fieldName).size
     }
 }

@@ -5,8 +5,6 @@ import xyz.surendrajat.smalilsp.core.*
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.util.ClassUtils
 import xyz.surendrajat.smalilsp.util.InstructionSymbolExtractor
-import java.io.File
-import java.net.URI
 
 /**
  * Provides "Find All References" functionality - AST-based implementation.
@@ -120,16 +118,16 @@ class ReferenceProvider(
      * - Declaration location
      * - Subclasses (.super directive)
      * - Implementations (.implements directive)
-     * - Field type references
-     * - Method parameter/return type references
-     * - Instruction references (new-instance, check-cast, etc.)
+     * - Field type references, method signature types, instruction targets
+     *
+     * Uses reverse indexes — O(1) lookup instead of scanning all files.
      */
     private fun findClassReferences(
         className: String,
         includeDeclaration: Boolean
     ): List<Location> {
         val locations = mutableListOf<Location>()
-        
+
         // Add declaration if requested
         if (includeDeclaration) {
             val file = workspaceIndex.findClass(className)
@@ -137,7 +135,7 @@ class ReferenceProvider(
                 locations.add(Location(file.uri, file.classDefinition.range))
             }
         }
-        
+
         // Find inheritance usages (classes that extend/implement this class)
         val usageUris = workspaceIndex.findClassUsages(className)
         usageUris.forEach { usageUri ->
@@ -147,72 +145,24 @@ class ReferenceProvider(
                 if (usageFile != null) {
                     // Return .super directive range if this class is the superclass
                     if (usageFile.classDefinition.superClass == className) {
-                        val range = usageFile.classDefinition.superClassRange 
-                            ?: usageFile.classDefinition.range  // Fallback to class header if range not available
+                        val range = usageFile.classDefinition.superClassRange
+                            ?: usageFile.classDefinition.range
                         locations.add(Location(usageFile.uri, range))
                     }
-                    
+
                     // Return .implements directive range if this class is an interface
                     if (className in usageFile.classDefinition.interfaces) {
                         val range = usageFile.classDefinition.interfaceRanges[className]
-                            ?: usageFile.classDefinition.range  // Fallback to class header if range not available
+                            ?: usageFile.classDefinition.range
                         locations.add(Location(usageFile.uri, range))
                     }
                 }
             }
         }
-        
-        // Scan all files for instruction-level references
-        workspaceIndex.getAllFiles().forEach { file ->
-            // Check field types
-            file.fields.forEach { field ->
-                if (field.type == className || field.type.contains(className)) {
-                    locations.add(Location(file.uri, field.range))
-                }
-            }
-            
-            // Check method signatures (parameters and return types)
-            file.methods.forEach { method ->
-                // Check return type
-                if (method.returnType == className || method.returnType.contains(className)) {
-                    locations.add(Location(file.uri, method.range))
-                }
-                // Check parameter types
-                method.parameters.forEach { param ->
-                    if (param.type == className || param.type.contains(className)) {
-                        locations.add(Location(file.uri, method.range))
-                    }
-                }
-                
-                // Check instructions for class references
-                method.instructions.forEach { instruction ->
-                    when (instruction) {
-                        is TypeInstruction -> {
-                            if (instruction.className == className) {
-                                locations.add(Location(file.uri, instruction.range))
-                            }
-                        }
-                        is InvokeInstruction -> {
-                            if (instruction.className == className) {
-                                locations.add(Location(file.uri, instruction.range))
-                            }
-                        }
-                        is FieldAccessInstruction -> {
-                            if (instruction.className == className || instruction.fieldType == className) {
-                                locations.add(Location(file.uri, instruction.range))
-                            }
-                        }
-                        is JumpInstruction -> {
-                            // JumpInstructions don't reference classes - skip
-                        }
-                        is ConstStringInstruction -> {
-                            // String literals don't reference classes
-                        }
-                    }
-                }
-            }
-        }
-        
+
+        // All other references: instructions + field types + method signatures (O(1) lookup)
+        locations.addAll(workspaceIndex.findClassRefLocations(className))
+
         return locations.distinctBy { "${it.uri}:${it.range.start.line}:${it.range.start.character}" }
     }
     
@@ -239,12 +189,8 @@ class ReferenceProvider(
     /**
      * Find all references to a method by name and descriptor.
      * This version works for both workspace classes and SDK classes.
-     * 
-     * @param targetClassName The class containing the method
-     * @param methodName The method name
-     * @param descriptor The method descriptor
-     * @param includeDeclaration Whether to include the declaration (only if in workspace)
-     * @param declarationRange The range of the declaration (null for SDK classes)
+     *
+     * Uses reverse indexes — O(1) lookup per class instead of scanning all files.
      */
     private fun findMethodReferences(
         targetClassName: String,
@@ -254,7 +200,7 @@ class ReferenceProvider(
         declarationRange: Range? = null
     ): List<Location> {
         val locations = mutableListOf<Location>()
-        
+
         // Add declaration if requested and available (in workspace)
         if (includeDeclaration && declarationRange != null) {
             val file = workspaceIndex.findClass(targetClassName)
@@ -262,68 +208,21 @@ class ReferenceProvider(
                 locations.add(Location(file.uri, declarationRange))
             }
         }
-        
-        // For SDK classes, only find DIRECT calls (not polymorphic subclass calls)
-        // This prevents too many results (e.g., Object.<init> would match everything)
-        val isSdkTarget = ClassUtils.isSDKClass(targetClassName)
-        
-        // Build list of classes that could reference this method
-        val validClassNames = mutableSetOf(targetClassName)
-        
-        // For workspace classes: Add all subclasses that inherit this method
-        // For SDK classes: Skip subclass matching (direct calls only)
-        if (!isSdkTarget) {
-            workspaceIndex.getAllFiles().forEach { file ->
-                if (isSubclassOf(file.classDefinition.name, targetClassName)) {
-                    validClassNames.add(file.classDefinition.name)
-                }
+
+        // Direct call sites
+        locations.addAll(workspaceIndex.findMethodUsages(targetClassName, methodName, descriptor))
+
+        // Polymorphic call sites (calls through subclasses/implementors)
+        // Skip for SDK classes to avoid too many results (e.g., Object.<init>)
+        if (!ClassUtils.isSDKClass(targetClassName)) {
+            for (subClass in workspaceIndex.getAllSubclasses(targetClassName)) {
+                locations.addAll(workspaceIndex.findMethodUsages(subClass, methodName, descriptor))
             }
         }
-        
-        // Search all files for method invocations
-        workspaceIndex.getAllFiles().forEach { file ->
-            file.methods.forEach { method ->
-                method.instructions.forEach { instruction ->
-                    if (instruction is InvokeInstruction) {
-                        // Check if this invoke instruction calls our target method
-                        // Match by method name + descriptor, and class is target or subclass
-                        if (instruction.methodName == methodName &&
-                            instruction.descriptor == descriptor &&
-                            (validClassNames.contains(instruction.className) || 
-                             instruction.className == targetClassName)) {
-                            locations.add(Location(file.uri, instruction.range))
-                        }
-                    }
-                }
-            }
-        }
-        
+
         return locations
     }
     
-    /**
-     * Check if a class is a subclass of another class.
-     * Follows the inheritance chain up to find if targetSuperClass is an ancestor.
-     */
-    private fun isSubclassOf(className: String, targetSuperClass: String): Boolean {
-        if (className == targetSuperClass) return false // Not a subclass of itself
-        
-        var current = className
-        val visited = mutableSetOf<String>()
-        
-        while (current != "Ljava/lang/Object;") {
-            if (visited.contains(current)) break // Circular inheritance (shouldn't happen)
-            visited.add(current)
-            
-            val file = workspaceIndex.findClass(current) ?: break
-            val superClass = file.classDefinition.superClass ?: break
-            
-            if (superClass == targetSuperClass) return true
-            current = superClass
-        }
-        
-        return false
-    }
     
     /**
      * Find all references to a field.
@@ -347,12 +246,8 @@ class ReferenceProvider(
     /**
      * Find all references to a field by name and type.
      * This version works for both workspace classes and SDK classes.
-     * 
-     * @param targetClassName The class containing the field
-     * @param fieldName The field name
-     * @param fieldType The field type descriptor
-     * @param includeDeclaration Whether to include the declaration (only if in workspace)
-     * @param declarationRange The range of the declaration (null for SDK classes)
+     *
+     * Uses reverse indexes — O(1) lookup instead of scanning all files.
      */
     private fun findFieldReferences(
         targetClassName: String,
@@ -362,7 +257,7 @@ class ReferenceProvider(
         declarationRange: Range? = null
     ): List<Location> {
         val locations = mutableListOf<Location>()
-        
+
         // Add declaration if requested and available (in workspace)
         if (includeDeclaration && declarationRange != null) {
             val file = workspaceIndex.findClass(targetClassName)
@@ -370,23 +265,10 @@ class ReferenceProvider(
                 locations.add(Location(file.uri, declarationRange))
             }
         }
-        
-        // Search all files for field accesses
-        workspaceIndex.getAllFiles().forEach { file ->
-            file.methods.forEach { method ->
-                method.instructions.forEach { instruction ->
-                    if (instruction is FieldAccessInstruction) {
-                        // Check if this field access instruction accesses our target field
-                        if (instruction.className == targetClassName &&
-                            instruction.fieldName == fieldName &&
-                            instruction.fieldType == fieldType) {
-                            locations.add(Location(file.uri, instruction.range))
-                        }
-                    }
-                }
-            }
-        }
-        
+
+        // All field access sites (O(1) lookup)
+        locations.addAll(workspaceIndex.findFieldUsages(targetClassName, fieldName))
+
         return locations
     }
     
@@ -406,17 +288,9 @@ class ReferenceProvider(
             return findLabelReferences(instruction.targetLabel, uri, position, includeDeclaration)
         }
         
-        // Read the actual line content to find which symbol cursor is on
-        val lineContent = try {
-            val file = File(URI(uri))
-            if (!file.exists()) return emptyList()
-            val lines = file.readLines()
-            if (position.line >= lines.size) return emptyList()
-            lines[position.line]
-        } catch (e: Exception) {
-            return emptyList()
-        }
-        
+        val lineContent = workspaceIndex.getLineContent(uri, position.line)
+            ?: return emptyList()
+
         // Extract symbol at cursor position
         val symbol = InstructionSymbolExtractor.extractSymbol(
             instruction,
@@ -502,16 +376,8 @@ class ReferenceProvider(
      * This is a fallback for when findNodeAt() doesn't match the directive line.
      */
     private fun extractClassRefFromDirectiveLine(uri: String, position: Position): String? {
-        // Read the line content
-        val lineContent = try {
-            val file = File(URI(uri))
-            if (!file.exists()) return null
-            val lines = file.readLines()
-            if (position.line >= lines.size) return null
-            lines[position.line]
-        } catch (e: Exception) {
-            return null
-        }
+        val lineContent = workspaceIndex.getLineContent(uri, position.line)
+            ?: return null
         
         val trimmed = lineContent.trim()
         
@@ -543,20 +409,12 @@ class ReferenceProvider(
      * Returns the class name if cursor is on the type, null otherwise.
      */
     private fun extractClassRefFromClassDirective(uri: String, position: Position, classDef: ClassDefinition): String? {
-        // Read the line content
-        val lineContent = try {
-            val file = File(URI(uri))
-            if (!file.exists()) return null
-            val lines = file.readLines()
-            if (position.line >= lines.size) return null
-            lines[position.line]
-        } catch (e: Exception) {
-            return null
-        }
-        
+        val lineContent = workspaceIndex.getLineContent(uri, position.line)
+            ?: return null
+
         // Check if line is .super or .implements
         val trimmed = lineContent.trim()
-        
+
         if (trimmed.startsWith(".super ")) {
             // .super LBaseClass;
             val className = trimmed.substring(7).trim().split('#')[0].trim()
@@ -598,16 +456,8 @@ class ReferenceProvider(
      * Returns LClassName; if cursor is on the type, null otherwise.
      */
     private fun extractClassRefFromFieldType(uri: String, position: Position, field: FieldDefinition): String? {
-        // Read the line content
-        val lineContent = try {
-            val file = File(URI(uri))
-            if (!file.exists()) return null
-            val lines = file.readLines()
-            if (position.line >= lines.size) return null
-            lines[position.line]
-        } catch (e: Exception) {
-            return null
-        }
+        val lineContent = workspaceIndex.getLineContent(uri, position.line)
+            ?: return null
         
         // Field format: .field modifiers fieldName:LType;
         // Find the colon position
@@ -650,16 +500,8 @@ class ReferenceProvider(
      * Returns class name if cursor is on a class reference, null otherwise.
      */
     private fun extractClassRefFromMethodSignature(uri: String, position: Position, method: MethodDefinition): String? {
-        // Read the line content
-        val lineContent = try {
-            val file = File(URI(uri))
-            if (!file.exists()) return null
-            val lines = file.readLines()
-            if (position.line >= lines.size) return null
-            lines[position.line]
-        } catch (e: Exception) {
-            return null
-        }
+        val lineContent = workspaceIndex.getLineContent(uri, position.line)
+            ?: return null
         
         // Method format: .method modifiers methodName(params)return
         // Find the descriptor in the line
