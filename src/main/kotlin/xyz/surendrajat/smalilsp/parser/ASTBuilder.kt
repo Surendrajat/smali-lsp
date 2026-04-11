@@ -149,8 +149,8 @@ class ASTBuilder(
      */
     private fun parseParameters(paramStr: String): List<Parameter> {
         if (paramStr.isEmpty()) return emptyList()
-        return DescriptorParser.parseTypeSequence(paramStr).map { span ->
-            Parameter(StringPool.intern(span.type), null)
+        return DescriptorParser.parseTypeStrings(paramStr).map { type ->
+            Parameter(StringPool.intern(type), null)
         }
     }
     
@@ -561,14 +561,12 @@ class ASTBuilder(
     override fun enterConstString(ctx: GeneratedSmaliParser.ConstStringContext) {
         if (currentMethod == null) return
 
-        val register = ctx.registerIdentifier()?.text ?: return
+        ctx.registerIdentifier()?.text ?: return
         val rawLiteral = ctx.stringLiteral()?.text ?: return
         val value = rawLiteral.removeSurrounding("\"")
 
         currentInstructions.add(ConstStringInstruction(
-            opcode = "const-string",
             value = value,
-            register = register,
             range = ctx.toRange()
         ))
     }
@@ -580,14 +578,12 @@ class ASTBuilder(
     override fun enterConstStringJumbo(ctx: GeneratedSmaliParser.ConstStringJumboContext) {
         if (currentMethod == null) return
 
-        val register = ctx.registerIdentifier()?.text ?: return
+        ctx.registerIdentifier()?.text ?: return
         val rawLiteral = ctx.stringLiteral()?.text ?: return
         val value = rawLiteral.removeSurrounding("\"")
 
         currentInstructions.add(ConstStringInstruction(
-            opcode = "const-string/jumbo",
             value = value,
-            register = register,
             range = ctx.toRange()
         ))
     }

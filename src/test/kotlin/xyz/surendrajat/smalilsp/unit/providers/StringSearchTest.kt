@@ -52,8 +52,6 @@ class StringSearchTest {
         val strings = greet.instructions.filterIsInstance<ConstStringInstruction>()
         assertEquals(1, strings.size)
         assertEquals("Hello, World!", strings[0].value)
-        assertEquals("const-string", strings[0].opcode)
-        assertEquals("v0", strings[0].register)
     }
 
     @Test

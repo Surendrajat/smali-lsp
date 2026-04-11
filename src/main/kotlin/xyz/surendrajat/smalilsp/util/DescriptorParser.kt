@@ -135,6 +135,58 @@ object DescriptorParser {
     }
 
     /**
+     * Lightweight variant of [parseTypeSequence] that returns only the type descriptor strings.
+     * Used on the indexing hot path (ASTBuilder.parseParameters) where position/classification
+     * metadata is not needed — avoids allocating 7-field TypeSpan objects per type.
+     */
+    fun parseTypeStrings(sequence: String): List<String> {
+        val types = mutableListOf<String>()
+        var i = 0
+
+        while (i < sequence.length) {
+            when (sequence[i]) {
+                '(', ')', ' ' -> i++
+                in PRIMITIVES -> {
+                    types.add(sequence[i].toString())
+                    i++
+                }
+                'L' -> {
+                    val semi = sequence.indexOf(';', i)
+                    if (semi > i) {
+                        types.add(sequence.substring(i, semi + 1))
+                        i = semi + 1
+                    } else {
+                        i++
+                    }
+                }
+                '[' -> {
+                    val arrayStart = i
+                    while (i < sequence.length && sequence[i] == '[') i++
+                    if (i >= sequence.length) break
+                    when (sequence[i]) {
+                        'L' -> {
+                            val semi = sequence.indexOf(';', i)
+                            if (semi > i) {
+                                types.add(sequence.substring(arrayStart, semi + 1))
+                                i = semi + 1
+                            } else {
+                                i++
+                            }
+                        }
+                        in PRIMITIVES -> {
+                            types.add(sequence.substring(arrayStart, i + 1))
+                            i++
+                        }
+                        else -> i++
+                    }
+                }
+                else -> i++
+            }
+        }
+        return types
+    }
+
+    /**
      * Extract only class names (Lpackage/Class;) from a type sequence.
      * For array-of-object types, extracts the element class name.
      */

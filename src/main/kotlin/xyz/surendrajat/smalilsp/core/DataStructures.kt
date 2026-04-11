@@ -62,13 +62,6 @@ data class SmaliFile(
         }
         
         return null
-    }    /**
-     * Get line content from position (when we need to parse references within a line).
-     * NOTE: This is a temporary bridge until we have full instruction-level AST.
-     */
-    fun getLineContent(position: Position, fileContent: String): String {
-        val lines = fileContent.lines()
-        return if (position.line < lines.size) lines[position.line] else ""
     }
 }
 
@@ -207,9 +200,7 @@ data class JumpInstruction(
  * String constant: const-string, const-string/jumbo
  */
 data class ConstStringInstruction(
-    val opcode: String,  // "const-string" or "const-string/jumbo"
     val value: String,   // The string literal value (without surrounding quotes)
-    val register: String,
     override val range: Range
 ) : Instruction(range)
 

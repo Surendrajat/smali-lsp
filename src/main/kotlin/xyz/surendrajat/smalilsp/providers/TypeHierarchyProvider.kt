@@ -94,19 +94,16 @@ class TypeHierarchyProvider(
         val className = item.detail ?: return emptyList()
         val results = mutableListOf<TypeHierarchyItem>()
 
-        for (file in index.getAllFiles()) {
-            val classDef = file.classDefinition
+        // Direct subclasses (O(1) lookup)
+        for (sub in index.getDirectSubclasses(className)) {
+            val file = index.findClass(sub) ?: continue
+            results.add(createItem(file))
+        }
 
-            // Direct subclass
-            if (classDef.superClass == className) {
-                results.add(createItem(file))
-                continue
-            }
-
-            // Direct implementor
-            if (className in classDef.interfaces) {
-                results.add(createItem(file))
-            }
+        // Direct implementors (O(1) lookup)
+        for (impl in index.getDirectImplementors(className)) {
+            val file = index.findClass(impl) ?: continue
+            results.add(createItem(file))
         }
 
         return results

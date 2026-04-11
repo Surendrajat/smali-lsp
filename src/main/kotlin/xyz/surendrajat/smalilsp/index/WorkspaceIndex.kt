@@ -10,6 +10,8 @@ import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.Range
 import java.util.concurrent.ConcurrentHashMap
+import java.io.File
+import java.net.URI
 
 /**
  * Thread-safe workspace index.
@@ -41,7 +43,22 @@ class WorkspaceIndex {
     private val classUsages = ConcurrentHashMap<String, MutableSet<String>>()
 
     // String literal index: string value → Set<Location>
-    private val stringIndex = ConcurrentHashMap<String, MutableSet<Location>>()
+    // Built lazily on first search — not during parallel indexFile() to avoid CHM contention.
+    private var stringIndex = HashMap<String, MutableSet<Location>>()
+    @Volatile private var stringIndexDirty = true
+    private val stringIndexLock = Any()
+
+    // Subclass hierarchy: parent class → direct subclasses
+    // Built at index time, used by ReferenceProvider and TypeHierarchyProvider
+    private val subclassIndex = ConcurrentHashMap<String, MutableSet<String>>()
+
+    // Interface implementors: interface → direct implementors
+    private val implementorsIndex = ConcurrentHashMap<String, MutableSet<String>>()
+
+    // Document content for open files (uri → content string)
+    // Only populated for files open in the editor (didOpen/didChange)
+    // Removed on didClose to bound memory to open editor tabs
+    private val documentContents = ConcurrentHashMap<String, String>()
     
     /**
      * Index a smali file. Thread-safe.
@@ -67,27 +84,24 @@ class WorkspaceIndex {
             fieldLocations[signature] = Location(file.uri, field.range)
         }
         
-        // Track superclass usage
+        // Track superclass usage + subclass hierarchy
         file.classDefinition.superClass?.let { superClass ->
             classUsages.computeIfAbsent(superClass) { ConcurrentHashMap.newKeySet() }
                 .add(file.uri)
+            subclassIndex.computeIfAbsent(superClass) { ConcurrentHashMap.newKeySet() }
+                .add(className)
         }
-        
-        // Track interface usages
+
+        // Track interface usages + implementors
         file.classDefinition.interfaces.forEach { iface ->
             classUsages.computeIfAbsent(iface) { ConcurrentHashMap.newKeySet() }
                 .add(file.uri)
+            implementorsIndex.computeIfAbsent(iface) { ConcurrentHashMap.newKeySet() }
+                .add(className)
         }
 
-        // Index string literals
-        file.methods.forEach { method ->
-            method.instructions.forEach { instr ->
-                if (instr is ConstStringInstruction) {
-                    stringIndex.computeIfAbsent(instr.value) { ConcurrentHashMap.newKeySet() }
-                        .add(Location(file.uri, instr.range))
-                }
-            }
-        }
+        // Mark string index as stale (rebuilt lazily on next search)
+        stringIndexDirty = true
     }
     
     /**
@@ -192,10 +206,37 @@ class WorkspaceIndex {
     }
     
     /**
+     * Build the string literal index from all indexed files.
+     * Called lazily on first search — not during the parallel indexFile() scan,
+     * where ConcurrentHashMap contention on stringIndex was the primary bottleneck.
+     * Double-checked locking: volatile read is fast, synchronized block only on first build.
+     */
+    private fun ensureStringIndex() {
+        if (!stringIndexDirty) return
+        synchronized(stringIndexLock) {
+            if (!stringIndexDirty) return@synchronized
+            val newIndex = HashMap<String, MutableSet<Location>>()
+            for (file in files.values) {
+                for (method in file.methods) {
+                    for (instr in method.instructions) {
+                        if (instr is ConstStringInstruction) {
+                            newIndex.getOrPut(instr.value) { mutableSetOf() }
+                                .add(Location(file.uri, instr.range))
+                        }
+                    }
+                }
+            }
+            stringIndex = newIndex
+            stringIndexDirty = false
+        }
+    }
+
+    /**
      * Search string literals by substring match (case-insensitive).
      * Returns matching string values with their locations.
      */
     fun searchStrings(query: String, maxResults: Int = 500): List<StringSearchResult> {
+        ensureStringIndex()
         val normalizedQuery = query.lowercase()
         return stringIndex.entries
             .filter { (value, _) -> value.lowercase().contains(normalizedQuery) }
@@ -209,6 +250,7 @@ class WorkspaceIndex {
      * Get all locations of an exact string literal.
      */
     fun findStringLocations(value: String): Set<Location> {
+        ensureStringIndex()
         return stringIndex[value] ?: emptySet()
     }
 
@@ -218,11 +260,49 @@ class WorkspaceIndex {
     fun findClassUsages(className: String): Set<String> {
         return classUsages[className] ?: emptySet()
     }
+
+    /**
+     * Get direct subclasses of a class. O(1) lookup.
+     */
+    fun getDirectSubclasses(className: String): Set<String> {
+        return subclassIndex[className] ?: emptySet()
+    }
+
+    /**
+     * Get direct implementors of an interface. O(1) lookup.
+     */
+    fun getDirectImplementors(className: String): Set<String> {
+        return implementorsIndex[className] ?: emptySet()
+    }
+
+    /**
+     * Get all transitive subclasses (direct + indirect). BFS traversal.
+     * Used by ReferenceProvider for polymorphic method reference matching.
+     */
+    fun getAllSubclasses(className: String): Set<String> {
+        val result = mutableSetOf<String>()
+        val queue = ArrayDeque<String>()
+        queue.add(className)
+
+        while (queue.isNotEmpty()) {
+            val current = queue.removeFirst()
+            val directSubs = subclassIndex[current] ?: emptySet()
+            val directImpls = implementorsIndex[current] ?: emptySet()
+            for (sub in directSubs) {
+                if (result.add(sub)) queue.add(sub)
+            }
+            for (impl in directImpls) {
+                if (result.add(impl)) queue.add(impl)
+            }
+        }
+        return result
+    }
     
     /**
      * Get index statistics.
      */
     fun getStats(): IndexStats {
+        ensureStringIndex()
         return IndexStats(
             classes = files.size,
             methods = methodLocations.values.sumOf { it.size },
@@ -312,6 +392,48 @@ class WorkspaceIndex {
     }
     
     /**
+     * Store document content for an open file.
+     * Called by SmaliTextDocumentService on didOpen/didChange.
+     */
+    fun setDocumentContent(uri: String, content: String) {
+        documentContents[uri] = content
+    }
+
+    /**
+     * Remove document content when file is closed.
+     * Called by SmaliTextDocumentService on didClose.
+     */
+    fun removeDocumentContent(uri: String) {
+        documentContents.remove(uri)
+    }
+
+    /**
+     * Get a specific line from a document.
+     * Checks in-memory content first (open editor buffers), falls back to disk.
+     *
+     * @param uri Document URI
+     * @param lineIndex 0-based line index
+     * @return Line content or null if unavailable
+     */
+    fun getLineContent(uri: String, lineIndex: Int): String? {
+        // Fast path: check in-memory content (open files)
+        val content = documentContents[uri]
+        if (content != null) {
+            val lines = content.lines()
+            return if (lineIndex in lines.indices) lines[lineIndex] else null
+        }
+
+        // Slow path: read from disk (non-open files, e.g. navigating to definition)
+        return try {
+            val path = URI(uri).let { File(it) }
+            val lines = path.readLines()
+            if (lineIndex in lines.indices) lines[lineIndex] else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
      * Clear all data (for tests).
      */
     fun clear() {
@@ -322,6 +444,10 @@ class WorkspaceIndex {
         fieldLocations.clear()
         classUsages.clear()
         stringIndex.clear()
+        stringIndexDirty = true
+        subclassIndex.clear()
+        implementorsIndex.clear()
+        documentContents.clear()
     }
     
     private fun methodSignature(className: String, methodName: String, descriptor: String): String {
