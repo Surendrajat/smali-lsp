@@ -454,7 +454,7 @@ fragment Letter
     | [\uD800-\uDBff] [\uDC00-\uDFFF] // covers UTF-16 surrogate pairs encodings for U+10000 to U+10FFFF
     ;
 
-// TypeNameComponent allows hyphen at start for class name components like -FileSystem
+// TypeNameComponent allows hyphen and digit starts for obfuscated class names like 2K, -FileSystem
 fragment TypeNameComponent
-    : Letter (LetterOrDigit)*  // Can start with hyphen since Letter includes it
+    : LetterOrDigit (LetterOrDigit)*  // LetterOrDigit includes Letter (hyphen, letters) + digits
     ;
