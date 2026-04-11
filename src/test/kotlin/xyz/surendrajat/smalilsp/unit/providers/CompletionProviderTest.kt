@@ -207,4 +207,129 @@ class CompletionProviderTest {
         )
         assertTrue(result.items.size <= 50, "Class completions should be capped at 50")
     }
+
+    // --- textEdit replacement range ---
+
+    @Test
+    fun `opcode completion replaces typed prefix via textEdit`() {
+        // User typed "invoke" at column 4 (after spaces)
+        val line = "    invoke"
+        val result = provider.provideCompletions("file:///test.smali", Position(5, 10), line)
+        assertTrue(result.items.isNotEmpty())
+
+        val item = result.items.first { it.label == "invoke-virtual" }
+        val textEdit = item.textEdit?.left
+        assertNotNull(textEdit, "CompletionItem must have a textEdit")
+        // The textEdit should replace from column 4 (start of "invoke") to column 10 (cursor)
+        assertEquals(4, textEdit.range.start.character)
+        assertEquals(10, textEdit.range.end.character)
+        assertEquals("invoke-virtual", textEdit.newText)
+    }
+
+    @Test
+    fun `member completion replaces typed prefix via textEdit`() {
+        val content = """
+            .class public Lcom/example/Service;
+            .super Ljava/lang/Object;
+            .method public start()V
+                .registers 1
+                return-void
+            .end method
+            .method public stop()V
+                .registers 1
+                return-void
+            .end method
+        """.trimIndent()
+        indexContent("file:///test/Service.smali", content)
+
+        val line = "    invoke-virtual {v0}, Lcom/example/Service;->st"
+        val result = provider.provideCompletions("file:///test.smali", Position(0, line.length), line)
+        assertTrue(result.items.isNotEmpty())
+
+        val item = result.items.first { it.label.contains("start") }
+        val textEdit = item.textEdit?.left
+        assertNotNull(textEdit, "Member CompletionItem must have a textEdit")
+        // Should replace "st" (2 chars before cursor)
+        assertEquals(line.length - 2, textEdit.range.start.character)
+        assertEquals(line.length, textEdit.range.end.character)
+    }
+
+    // --- Specific opcode completion tests ---
+
+    @Test
+    fun `invoke-static appears in completions for invoke-st prefix`() {
+        val line = "    invoke-st"
+        val result = provider.provideCompletions("file:///test.smali", Position(0, line.length), line)
+        assertTrue(result.items.isNotEmpty(), "Should have completions for 'invoke-st'")
+        assertTrue(result.items.any { it.label == "invoke-static" }, "Should include invoke-static")
+        assertTrue(result.items.any { it.label == "invoke-static/range" }, "Should include invoke-static/range")
+    }
+
+    @Test
+    fun `return prefix completes return-void and variants`() {
+        val line = "    return"
+        val result = provider.provideCompletions("file:///test.smali", Position(0, line.length), line)
+        assertTrue(result.items.isNotEmpty(), "Should have completions for 'return'")
+        val labels = result.items.map { it.label }
+        assertTrue(labels.contains("return-void"), "Should include return-void, got: $labels")
+        assertTrue(labels.contains("return"), "Should include return, got: $labels")
+        assertTrue(labels.contains("return-wide"), "Should include return-wide, got: $labels")
+        assertTrue(labels.contains("return-object"), "Should include return-object, got: $labels")
+    }
+
+    @Test
+    fun `const prefix completes const-4 and variants`() {
+        val line = "    const"
+        val result = provider.provideCompletions("file:///test.smali", Position(0, line.length), line)
+        assertTrue(result.items.isNotEmpty(), "Should have completions for 'const'")
+        val labels = result.items.map { it.label }
+        assertTrue(labels.contains("const/4"), "Should include const/4, got: $labels")
+        assertTrue(labels.contains("const/16"), "Should include const/16, got: $labels")
+        assertTrue(labels.contains("const-string"), "Should include const-string, got: $labels")
+    }
+
+    @Test
+    fun `aput prefix completes aput-object and variants`() {
+        val line = "    aput"
+        val result = provider.provideCompletions("file:///test.smali", Position(0, line.length), line)
+        assertTrue(result.items.isNotEmpty(), "Should have completions for 'aput'")
+        val labels = result.items.map { it.label }
+        assertTrue(labels.contains("aput"), "Should include aput, got: $labels")
+        assertTrue(labels.contains("aput-object"), "Should include aput-object, got: $labels")
+        assertTrue(labels.contains("aput-wide"), "Should include aput-wide, got: $labels")
+    }
+
+    @Test
+    fun `move prefix completes move variants`() {
+        val line = "    move"
+        val result = provider.provideCompletions("file:///test.smali", Position(0, line.length), line)
+        assertTrue(result.items.isNotEmpty(), "Should have completions for 'move'")
+        val labels = result.items.map { it.label }
+        assertTrue(labels.contains("move"), "Should include move, got: $labels")
+        assertTrue(labels.contains("move-object"), "Should include move-object, got: $labels")
+        assertTrue(labels.contains("move-result"), "Should include move-result, got: $labels")
+    }
+
+    @Test
+    fun `add-int prefix completes add-int variants`() {
+        val line = "    add-int"
+        val result = provider.provideCompletions("file:///test.smali", Position(0, line.length), line)
+        assertTrue(result.items.isNotEmpty(), "Should have completions for 'add-int'")
+        val labels = result.items.map { it.label }
+        assertTrue(labels.contains("add-int"), "Should include add-int, got: $labels")
+        assertTrue(labels.contains("add-int/2addr"), "Should include add-int/2addr, got: $labels")
+        assertTrue(labels.contains("add-int/lit8"), "Should include add-int/lit8, got: $labels")
+        assertTrue(labels.contains("add-int/lit16"), "Should include add-int/lit16, got: $labels")
+    }
+
+    @Test
+    fun `single char n completes nop and neg variants`() {
+        val line = "    n"
+        val result = provider.provideCompletions("file:///test.smali", Position(0, line.length), line)
+        assertTrue(result.items.isNotEmpty(), "Should have completions for 'n'")
+        val labels = result.items.map { it.label }
+        assertTrue(labels.contains("nop"), "Should include nop, got: $labels")
+        assertTrue(labels.any { it.startsWith("neg-") }, "Should include neg variants, got: $labels")
+        assertTrue(labels.any { it.startsWith("new-") }, "Should include new variants, got: $labels")
+    }
 }

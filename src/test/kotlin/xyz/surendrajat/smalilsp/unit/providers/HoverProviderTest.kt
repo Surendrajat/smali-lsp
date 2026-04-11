@@ -294,4 +294,184 @@ class HoverProviderTest {
         assertTrue(content.contains("android.app.Activity") || content.contains("Activity"))
         assertFalse(content.contains("Landroid/app/Activity;"))
     }
+
+    // --- Opcode hover for instructions not captured in AST ---
+
+    @Test
+    fun `hover on return-void inside method body shows opcode docs`() {
+        val smaliContent = """.class public Lcom/example/Test;
+.super Ljava/lang/Object;
+
+.method public constructor <init>()V
+    .registers 1
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+    return-void
+.end method"""
+        val uri = "file:///test_hover.smali"
+
+        val file = SmaliFile(
+            uri = uri,
+            classDefinition = ClassDefinition(
+                name = "Lcom/example/Test;",
+                range = range(0, 0, 7, 11),
+                modifiers = setOf("public"),
+                superClass = "Ljava/lang/Object;",
+                interfaces = emptyList()
+            ),
+            methods = listOf(
+                MethodDefinition(
+                    name = "<init>",
+                    descriptor = "()V",
+                    range = range(3, 0, 7, 11),
+                    modifiers = setOf("public"),
+                    parameters = emptyList(),
+                    returnType = "V",
+                    instructions = listOf(
+                        InvokeInstruction("invoke-direct", "Ljava/lang/Object;", "<init>", "()V", range(5, 4, 5, 55))
+                    )
+                )
+            ),
+            fields = emptyList()
+        )
+        index.indexFile(file)
+        index.setDocumentContent(uri, smaliContent)
+
+        val hover = provider.provideHover(uri, Position(6, 6))
+
+        assertNotNull(hover, "Hover should show opcode docs for return-void")
+        val content = (hover.contents.right as org.eclipse.lsp4j.MarkupContent).value
+        assertTrue(content.contains("return-void"), "Should contain opcode name")
+        assertTrue(content.contains("0E") || content.contains("0e"), "Should contain opcode hex")
+    }
+
+    @Test
+    fun `hover on const-4 inside method body shows opcode docs`() {
+        val smaliContent = """.class public Lcom/example/Test;
+.super Ljava/lang/Object;
+
+.method public test()V
+    .registers 2
+    const/4 v0, 0x1
+    return-void
+.end method"""
+        val uri = "file:///test_hover_const.smali"
+
+        val file = SmaliFile(
+            uri = uri,
+            classDefinition = ClassDefinition(
+                name = "Lcom/example/Test;",
+                range = range(0, 0, 7, 11),
+                modifiers = setOf("public"),
+                superClass = "Ljava/lang/Object;",
+                interfaces = emptyList()
+            ),
+            methods = listOf(
+                MethodDefinition(
+                    name = "test",
+                    descriptor = "()V",
+                    range = range(3, 0, 7, 11),
+                    modifiers = setOf("public"),
+                    parameters = emptyList(),
+                    returnType = "V"
+                )
+            ),
+            fields = emptyList()
+        )
+        index.indexFile(file)
+        index.setDocumentContent(uri, smaliContent)
+
+        val hover = provider.provideHover(uri, Position(5, 6))
+
+        assertNotNull(hover, "Hover should show opcode docs for const/4")
+        val content = (hover.contents.right as org.eclipse.lsp4j.MarkupContent).value
+        assertTrue(content.contains("const/4"), "Should contain opcode name")
+        assertTrue(content.contains("12") || content.contains("0x12"), "Should contain opcode hex")
+    }
+
+    @Test
+    fun `hover on aput-object inside method body shows opcode docs`() {
+        val smaliContent = """.class public Lcom/example/Test;
+.super Ljava/lang/Object;
+
+.method public test()V
+    .registers 4
+    aput-object v0, v1, v2
+    return-void
+.end method"""
+        val uri = "file:///test_hover_aput.smali"
+
+        val file = SmaliFile(
+            uri = uri,
+            classDefinition = ClassDefinition(
+                name = "Lcom/example/Test;",
+                range = range(0, 0, 7, 11),
+                modifiers = setOf("public"),
+                superClass = "Ljava/lang/Object;",
+                interfaces = emptyList()
+            ),
+            methods = listOf(
+                MethodDefinition(
+                    name = "test",
+                    descriptor = "()V",
+                    range = range(3, 0, 7, 11),
+                    modifiers = setOf("public"),
+                    parameters = emptyList(),
+                    returnType = "V"
+                )
+            ),
+            fields = emptyList()
+        )
+        index.indexFile(file)
+        index.setDocumentContent(uri, smaliContent)
+
+        val hover = provider.provideHover(uri, Position(5, 6))
+
+        assertNotNull(hover, "Hover should show opcode docs for aput-object")
+        val content = (hover.contents.right as org.eclipse.lsp4j.MarkupContent).value
+        assertTrue(content.contains("aput-object"), "Should contain opcode name")
+        assertTrue(content.contains("4D") || content.contains("4d"), "Should contain opcode hex")
+    }
+
+    @Test
+    fun `hover on move instruction inside method body shows opcode docs`() {
+        val smaliContent = """.class public Lcom/example/Test;
+.super Ljava/lang/Object;
+
+.method public test()V
+    .registers 2
+    move v0, v1
+    return-void
+.end method"""
+        val uri = "file:///test_hover_move.smali"
+
+        val file = SmaliFile(
+            uri = uri,
+            classDefinition = ClassDefinition(
+                name = "Lcom/example/Test;",
+                range = range(0, 0, 7, 11),
+                modifiers = setOf("public"),
+                superClass = "Ljava/lang/Object;",
+                interfaces = emptyList()
+            ),
+            methods = listOf(
+                MethodDefinition(
+                    name = "test",
+                    descriptor = "()V",
+                    range = range(3, 0, 7, 11),
+                    modifiers = setOf("public"),
+                    parameters = emptyList(),
+                    returnType = "V"
+                )
+            ),
+            fields = emptyList()
+        )
+        index.indexFile(file)
+        index.setDocumentContent(uri, smaliContent)
+
+        val hover = provider.provideHover(uri, Position(5, 5))
+
+        assertNotNull(hover, "Hover should show opcode docs for move")
+        val content = (hover.contents.right as org.eclipse.lsp4j.MarkupContent).value
+        assertTrue(content.contains("move"), "Should contain opcode name")
+    }
 }

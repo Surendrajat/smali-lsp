@@ -2,13 +2,12 @@ package xyz.surendrajat.smalilsp.providers
 
 import org.eclipse.lsp4j.*
 import xyz.surendrajat.smalilsp.core.*
+import xyz.surendrajat.smalilsp.data.DalvikOpcodeDatabase
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.resolver.TypeResolver
 import xyz.surendrajat.smalilsp.util.ClassUtils
 import xyz.surendrajat.smalilsp.util.DescriptorParser
 import xyz.surendrajat.smalilsp.util.InstructionSymbolExtractor
-import java.io.File
-import java.net.URI
 
 /**
  * Provides hover information for Smali symbols.
@@ -24,7 +23,10 @@ import java.net.URI
 class HoverProvider(
     private val workspaceIndex: WorkspaceIndex
 ) {
-    
+    companion object {
+        private val CLASS_REF_PATTERN = Regex("""L[a-zA-Z0-9/$]+;""")
+    }
+
 
     
     /**
@@ -35,108 +37,77 @@ class HoverProvider(
         uri: String,
         position: Position
     ): Hover? {
-        // Get parsed file from index
         val file = workspaceIndex.findFileByUri(uri) ?: return null
-        
-        // Find AST node at position
         val node = file.findNodeAt(position)
-        
+        // Read the line once — avoids repeated disk I/O for closed files
+        val lineContent = workspaceIndex.getLineContent(uri, position.line)
+
         return when {
             node == null -> {
-                // Not on any specific node - check for special directives
-                // BUG FIX: Hover on .super and .implements lines
-                hoverForDirectiveLine(uri, position)
+                hoverForDirectiveLine(lineContent, position)
+                    ?: lineContent?.let { hoverForOpcodeKeyword(it, position.character) }
             }
-            
+
             node.first == NodeType.CLASS -> {
-                val classDef = node.second as ClassDefinition
-                hoverForClass(classDef)
+                hoverForClass(node.second as ClassDefinition)
             }
-            
+
             node.first == NodeType.METHOD -> {
                 val method = node.second as MethodDefinition
-                // Only show hover on method DECLARATION line
                 if (position.line == method.range.start.line) {
-                    // Check if cursor is on method name, descriptor type, or modifiers
-                    // If file content not available (e.g., in tests), allow hover anywhere on line
-                    val file = workspaceIndex.findFileByUri(uri)
-                    val lineContent = if (file != null) getLineContent(file.uri, position.line) else null
-                    
-                    if (lineContent == null || isOnMethodName(lineContent, position)) {
-                        hoverForMethod(method)
-                    } else {
-                        // Cursor not on method name - check if on class reference in signature
-                        // Method format: .method modifiers name(Lclass;)Lreturn;
-                        if (lineContent != null) {
-                            // Try to extract class reference at cursor position
-                            val classRef = extractClassRefAtPosition(lineContent, position.character)
-                            if (classRef != null) {
-                                // Cursor is on a class reference - show class hover
-                                return hoverForClassReference(classRef)
-                            }
-                            
-                            // Check if cursor is on a primitive type in the descriptor
-                            val primitiveHover = extractPrimitiveTypeAtPosition(lineContent, position.character, method.descriptor)
-                            if (primitiveHover != null) {
-                                return primitiveHover
-                            }
-                        }
-                        null
-                    }
+                    hoverForMethodDeclaration(file, method, position, lineContent)
                 } else {
-                    null
+                    // Inside method body but not on an AST-captured instruction
+                    lineContent?.let { hoverForOpcodeKeyword(it, position.character) }
                 }
             }
-            
+
             node.first == NodeType.INSTRUCTION -> {
-                // Instruction-level hover - show info for symbol under cursor
-                val instruction = node.second as Instruction
-                hoverForInstruction(instruction, uri, position)
+                hoverForInstruction(node.second as Instruction, uri, position, lineContent)
             }
-            
+
             node.first == NodeType.FIELD -> {
-                val field = node.second as FieldDefinition
-                // Check if cursor is on field name, type descriptor, or modifiers
-                // If file content not available (e.g., in tests), allow hover anywhere on line
-                val file = workspaceIndex.findFileByUri(uri)
-                val lineContent = if (file != null) getLineContent(file.uri, position.line) else null
-                
-                if (lineContent == null || isOnFieldName(lineContent, position)) {
-                    hoverForField(field)
-                } else {
-                    // Check if cursor is on the field type (after colon)
-                    // Field format: .field private name:Type
-                    val colonIndex = lineContent?.indexOf(':') ?: -1
-                    if (colonIndex >= 0 && position.character > colonIndex) {
-                        // Extract type from field - could be primitive or class
-                        val fieldType = field.type
-                        
-                        // Check if cursor is on a primitive type
-                        val primitiveHover = lineContent?.let {
-                            extractPrimitiveTypeAtPosition(it, position.character, fieldType, colonIndex + 1)
-                        }
-                        
-                        // If not on primitive, check if on class type
-                        if (primitiveHover == null && (fieldType.startsWith("L") || fieldType.startsWith("["))) {
-                            // Cursor on class type - show class hover
-                            hoverForClassReference(fieldType)
-                        } else {
-                            primitiveHover
-                        }
-                    } else {
-                        null
-                    }
-                }
+                hoverForFieldNode(file, node.second as FieldDefinition, position, lineContent)
             }
-            
+
             node.first == NodeType.LABEL -> {
-                // Hover on label definition - show label info
-                val labelDef = node.second as LabelDefinition
-                hoverForLabel(labelDef, uri)
+                hoverForLabel(node.second as LabelDefinition, uri)
             }
-            
+
             else -> null
         }
+    }
+
+    private fun hoverForMethodDeclaration(file: SmaliFile, method: MethodDefinition, position: Position, lineContent: String?): Hover? {
+        if (lineContent == null || isOnMethodName(lineContent, position)) {
+            return hoverForMethod(method)
+        }
+        // Check class reference in signature
+        extractClassRefAtPosition(lineContent, position.character)?.let {
+            return hoverForClassReference(it)
+        }
+        // Check primitive type in descriptor
+        extractPrimitiveTypeAtPosition(lineContent, position.character, method.descriptor)?.let {
+            return it
+        }
+        return null
+    }
+
+    private fun hoverForFieldNode(file: SmaliFile, field: FieldDefinition, position: Position, lineContent: String?): Hover? {
+        if (lineContent == null || isOnFieldName(lineContent, position)) {
+            return hoverForField(field)
+        }
+        val colonIndex = lineContent.indexOf(':')
+        if (colonIndex < 0 || position.character <= colonIndex) return null
+
+        // Check primitive type first, then class type
+        extractPrimitiveTypeAtPosition(lineContent, position.character, field.type, colonIndex + 1)?.let {
+            return it
+        }
+        if (field.type.startsWith("L") || field.type.startsWith("[")) {
+            return hoverForClassReference(field.type)
+        }
+        return null
     }
     
     /**
@@ -214,27 +185,6 @@ class HoverProvider(
     }
     
 
-    
-    /**
-     * Get line content from file URI.
-     * Reads file from disk on demand and returns the specified line.
-     * Only used for hover on declaration lines (rare - <1% of hovers).
-     * Cost: 1-10ms per call, but happens rarely so imperceptible to user.
-     * Benefit: Save 0.5-2 GB memory for large apps.
-     */
-    private fun getLineContent(uri: String, lineIndex: Int): String? {
-        return try {
-            val path = java.net.URI(uri).path
-            val file = java.io.File(path)
-            if (!file.exists()) return null
-            
-            val lines = file.readLines()
-            if (lineIndex < 0 || lineIndex >= lines.size) null
-            else lines[lineIndex]
-        } catch (e: Exception) {
-            null
-        }
-    }
     
     /**
      * Check if cursor position is on field name (not on modifiers like .field, public, etc.)
@@ -350,8 +300,15 @@ class HoverProvider(
     /**
      * Hover on instruction - show info for symbol under cursor.
      * Uses InstructionSymbolExtractor to determine which symbol cursor is on.
+     * Also shows Dalvik opcode documentation when cursor is on the opcode keyword.
      */
-    private fun hoverForInstruction(instruction: Instruction, uri: String, position: Position): Hover? {
+    private fun hoverForInstruction(instruction: Instruction, uri: String, position: Position, lineContent: String?): Hover? {
+        if (lineContent == null) return null
+
+        // Check if cursor is on the opcode keyword itself
+        val opcodeHover = hoverForOpcodeKeyword(lineContent, position.character)
+        if (opcodeHover != null) return opcodeHover
+
         // Handle JumpInstruction - show label hover info
         if (instruction is JumpInstruction) {
             val file = workspaceIndex.findFileByUri(uri)
@@ -371,18 +328,7 @@ class HoverProvider(
                 )
             )
         }
-        
-        // Read the actual line content to find which symbol cursor is on
-        val lineContent = try {
-            val file = File(URI(uri))
-            if (!file.exists()) return null
-            val lines = file.readLines()
-            if (position.line >= lines.size) return null
-            lines[position.line]
-        } catch (e: Exception) {
-            return null
-        }
-        
+
         // Extract symbol at cursor position
         val symbol = InstructionSymbolExtractor.extractSymbol(
             instruction,
@@ -411,7 +357,33 @@ class HoverProvider(
             }
         }
     }
-    
+
+    /**
+     * Check if cursor is on an opcode keyword and return hover with instruction documentation.
+     * Extracts the opcode token from the line and looks it up in DalvikOpcodeDatabase.
+     */
+    private fun hoverForOpcodeKeyword(lineContent: String, cursorChar: Int): Hover? {
+        val trimmed = lineContent.trimStart()
+        if (trimmed.isEmpty() || trimmed.startsWith(".") || trimmed.startsWith("#") || trimmed.startsWith(":")) {
+            return null
+        }
+
+        // Find the opcode token: first whitespace-delimited word on the line
+        val leadingSpaces = lineContent.length - trimmed.length
+        val opcodeEnd = trimmed.indexOf(' ').let { if (it == -1) trimmed.length else it }
+        val opcodeStart = leadingSpaces
+        val opcodeEndInLine = leadingSpaces + opcodeEnd
+
+        // Check if cursor is within the opcode token
+        if (cursorChar < opcodeStart || cursorChar >= opcodeEndInLine) {
+            return null
+        }
+
+        val opcodeName = trimmed.substring(0, opcodeEnd)
+        val info = DalvikOpcodeDatabase.lookup(opcodeName) ?: return null
+        return Hover(MarkupContent(MarkupKind.MARKDOWN, info.toMarkdown()))
+    }
+
     /**
      * Hover on class reference in instruction.
      */
@@ -653,8 +625,7 @@ class HoverProvider(
      */
     private fun extractClassRefAtPosition(lineContent: String, cursorChar: Int): String? {
         // Find all class references in the line
-        val classPattern = Regex("""L[a-zA-Z0-9/\$]+;""")
-        for (match in classPattern.findAll(lineContent)) {
+        for (match in CLASS_REF_PATTERN.findAll(lineContent)) {
             // Check if cursor is within this class reference
             if (cursorChar >= match.range.first && cursorChar <= match.range.last) {
                 return match.value
@@ -668,15 +639,9 @@ class HoverProvider(
      * BUG FIX: These directives don't have separate AST nodes, so findNodeAt() returns null.
      * This fallback reads the line content and provides hover info for class references.
      */
-    private fun hoverForDirectiveLine(uri: String, position: Position): Hover? {
+    private fun hoverForDirectiveLine(lineContent: String?, position: Position): Hover? {
         try {
-            val file = File(URI(uri))
-            if (!file.exists()) return null
-            
-            val lines = file.readLines()
-            if (position.line >= lines.size) return null
-            
-            val line = lines[position.line].trim()
+            val line = (lineContent ?: return null).trim()
             
             // Check for .super directive
             if (line.startsWith(".super ")) {
@@ -709,9 +674,7 @@ class HoverProvider(
             
             // Fallback: Check for any class reference in the line
             // This handles .annotation, .parameter, and other directives with class references
-            val classPattern = Regex("""L[a-zA-Z0-9/$]+;""")
-            val matches = classPattern.findAll(line)
-            for (match in matches) {
+            for (match in CLASS_REF_PATTERN.findAll(line)) {
                 if (position.character >= match.range.first && position.character <= match.range.last) {
                     return hoverForClassReference(match.value)
                 }

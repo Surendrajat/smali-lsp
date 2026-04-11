@@ -127,19 +127,19 @@ class InstructionNavigationTest {
         assertNotNull(file)
         index.indexFile(file!!)
         
-        // Test iget navigation (line 8 - iget instruction)
-        val igetPosition = Position(8, 20)
+        // Test iget navigation (line 8) - cursor on field name "myField" (after ->)
+        val igetPosition = Position(8, 35)
         val igetDefs = definitionProvider.findDefinition("file:///Test.smali", igetPosition)
-        
+
         assertEquals(1, igetDefs.size, "Should find field definition from iget")
         val igetDef = igetDefs[0]
         assertTrue(igetDef.uri.contains("Test.smali"))
-        
+
         // Verify it's the myField field (line 3)
         assertEquals(3, igetDef.range.start.line, "Should navigate to field definition at line 3")
-        
-        // Test iput navigation (line 15 - iput instruction)
-        val iputPosition = Position(15, 20)
+
+        // Test iput navigation (line 15) - cursor on field name "myField" (after ->)
+        val iputPosition = Position(15, 35)
         val iputDefs = definitionProvider.findDefinition("file:///Test.smali", iputPosition)
         
         assertEquals(1, iputDefs.size, "Should find field definition from iput")
@@ -174,17 +174,18 @@ class InstructionNavigationTest {
         assertNotNull(file)
         index.indexFile(file!!)
         
-        // Test sget-boolean navigation
-        val debugPosition = Position(9, 25)
+        // Test sget-boolean navigation - cursor on field name "DEBUG" (after ->)
+        val debugPosition = Position(9, 44)
         val debugDefs = definitionProvider.findDefinition("file:///Config.smali", debugPosition)
-        
+
         assertEquals(1, debugDefs.size, "Should find DEBUG field")
         assertEquals(3, debugDefs[0].range.start.line, "Should navigate to DEBUG field at line 3")
-        
-        // Test sget navigation
-        val versionPosition = Position(16, 25)
+
+        // Test sget navigation - cursor on field name "VERSION" (after ->)
+        // "    sget v0, Lcom/example/Config;->VERSION:I"
+        val versionPosition = Position(16, 38)
         val versionDefs = definitionProvider.findDefinition("file:///Config.smali", versionPosition)
-        
+
         assertEquals(1, versionDefs.size, "Should find VERSION field")
         assertEquals(4, versionDefs[0].range.start.line, "Should navigate to VERSION field at line 4")
     }
@@ -318,8 +319,8 @@ class InstructionNavigationTest {
         index.indexFile(utilsFile!!)
         index.indexFile(activityFile!!)
         
-        // Navigate from invoke-static to Utils.log (line 9)
-        val position = Position(9, 30)
+        // Navigate from invoke-static to Utils.log (line 9) - cursor on "log" method name
+        val position = Position(9, 46)
         val definitions = definitionProvider.findDefinition("file:///MainActivity.smali", position)
         
         assertEquals(1, definitions.size, "Should find Utils.log method")

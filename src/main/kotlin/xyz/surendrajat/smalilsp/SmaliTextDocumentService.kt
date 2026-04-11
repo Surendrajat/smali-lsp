@@ -46,6 +46,9 @@ class SmaliTextDocumentService(
     private val parser = SmaliParser()
     private val diagnosticProvider = DiagnosticProvider(parser, index)
     private var client: LanguageClient? = null
+
+    /** In-memory document content for open files (uri → content). */
+    private val documentContents = java.util.concurrent.ConcurrentHashMap<String, String>()
     
     /**
      * Connect to client for sending notifications.
@@ -69,6 +72,8 @@ class SmaliTextDocumentService(
         val content = params.textDocument.text
 
         logger.debug("didOpen: $uri")
+        documentContents[uri] = content
+        index.setDocumentContent(uri, content)
 
         try {
             // Skip re-parsing if already indexed from workspace scan
@@ -102,6 +107,8 @@ class SmaliTextDocumentService(
         val content = changes[0].text
 
         logger.debug("didChange: $uri")
+        documentContents[uri] = content
+        index.setDocumentContent(uri, content)
 
         try {
             val smaliFile = parser.parse(uri, content)
@@ -125,6 +132,8 @@ class SmaliTextDocumentService(
      */
     override fun didClose(params: DidCloseTextDocumentParams) {
         val uri = params.textDocument.uri
+        documentContents.remove(uri)
+        index.removeDocumentContent(uri)
         logger.debug("didClose: $uri (keeping in index)")
         // Do NOT remove from index - learned from V1 bug
         // Removing breaks cross-file references (go-to-definition, find-references)
@@ -369,14 +378,7 @@ class SmaliTextDocumentService(
 
         return CompletableFuture.supplyAsync {
             try {
-                val file = index.findFileByUri(uri)
-                val lineText = if (file != null) {
-                    try {
-                        val path = java.net.URI(uri).let { java.io.File(it) }
-                        val lines = path.readLines()
-                        if (position.line < lines.size) lines[position.line] else ""
-                    } catch (_: Exception) { "" }
-                } else ""
+                val lineText = getLineFromBuffer(uri, position.line)
 
                 val result = completionProvider.provideCompletions(uri, position, lineText)
                 Either.forRight<MutableList<CompletionItem>, CompletionList>(result)
@@ -385,5 +387,23 @@ class SmaliTextDocumentService(
                 Either.forRight(CompletionList(false, emptyList()))
             }
         }
+    }
+
+    /**
+     * Get line content from in-memory buffer (preferred) or disk (fallback).
+     */
+    internal fun getLineFromBuffer(uri: String, line: Int): String {
+        // Prefer in-memory content (always up-to-date with unsaved edits)
+        val content = documentContents[uri]
+        if (content != null) {
+            val lines = content.lines()
+            return if (line in lines.indices) lines[line] else ""
+        }
+        // Fallback to disk
+        return try {
+            val path = java.net.URI(uri).let { java.io.File(it) }
+            val lines = path.readLines()
+            if (line in lines.indices) lines[line] else ""
+        } catch (_: Exception) { "" }
     }
 }

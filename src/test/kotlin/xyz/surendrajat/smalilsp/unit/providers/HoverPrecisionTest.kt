@@ -51,26 +51,29 @@ class HoverPrecisionTest {
     }
     
     @Test
-    fun `hover on simple instruction (not in AST) should NOT show hover`() {
+    fun `hover on simple instruction (not in AST) shows opcode docs`() {
         val content = """
             .class public LTest;
             .super Ljava/lang/Object;
-            
+
             .method public onCreate()V
                 .locals 1
                 const/4 v0, 0x0
                 return-void
             .end method
         """.trimIndent()
-        
+
         val uri = "file:///test2.smali"
         val file = parser.parse(uri, content)
         assertNotNull(file)
         index.indexFile(file)
-        
-        // Cursor on "const/4 v0, 0x0" line (simple instruction, not in AST)
-        val hover = hoverProvider.provideHover(uri, Position(5, 10))
-        assertNull(hover, "Should NOT show hover on simple instruction (not in AST)")
+        index.setDocumentContent(uri, content)
+
+        // Cursor on "const/4" opcode keyword — should show opcode docs
+        val hover = hoverProvider.provideHover(uri, Position(5, 6))
+        assertNotNull(hover, "Should show opcode hover for const/4")
+        val markup = hover!!.contents.right as org.eclipse.lsp4j.MarkupContent
+        assertTrue(markup.value.contains("const/4"), "Should contain opcode name")
     }
     
     @Test

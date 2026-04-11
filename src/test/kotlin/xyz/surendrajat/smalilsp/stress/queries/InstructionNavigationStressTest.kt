@@ -201,7 +201,7 @@ class InstructionNavigationStressTest {
                         "jump-${instruction.opcode}"
                     }
                     is ConstStringInstruction -> {
-                        "string-${instruction.opcode}"
+                        "string-const-string"
                     }
                 }
                 

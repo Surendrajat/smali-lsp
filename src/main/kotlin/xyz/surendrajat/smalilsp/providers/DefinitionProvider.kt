@@ -7,8 +7,6 @@ import xyz.surendrajat.smalilsp.resolver.TypeResolver
 import xyz.surendrajat.smalilsp.util.ClassUtils
 import xyz.surendrajat.smalilsp.util.InstructionSymbolExtractor
 import org.slf4j.LoggerFactory
-import java.io.File
-import java.net.URI
 
 /**
  * Provides "Go to Definition" functionality - AST-based implementation.
@@ -129,29 +127,15 @@ class DefinitionProvider(
             return findLabelDefinition(instruction.targetLabel, uri)
         }
         
-        // Read the actual line content to find which symbol cursor is on
-        val lineContent = try {
-            val file = File(URI(uri))
-            if (!file.exists()) {
-                // Fallback: Navigate to first symbol in instruction (old behavior)
-                return handleInstructionNavigationFallback(instruction)
-            }
-            val lines = file.readLines()
-            if (position.line >= lines.size) {
-                return handleInstructionNavigationFallback(instruction)
-            }
-            lines[position.line]
-        } catch (e: Exception) {
-            logger.warn("Failed to read file for instruction navigation: $uri", e)
-            return handleInstructionNavigationFallback(instruction)
-        }
+        val lineContent = workspaceIndex.getLineContent(uri, position.line)
+            ?: return handleInstructionNavigationFallback(instruction)
         
-        // Extract symbol at cursor position
+        // Extract symbol at cursor position; fall back to primary symbol if cursor is on opcode/whitespace
         val symbol = InstructionSymbolExtractor.extractSymbol(
             instruction,
             lineContent,
             position.character
-        ) ?: return emptyList()
+        ) ?: return handleInstructionNavigationFallback(instruction)
         
         // Navigate based on symbol type
         return when (symbol) {
@@ -276,101 +260,13 @@ class DefinitionProvider(
         position: Position,
         uri: String
     ): List<Location> {
-        // Try to read the actual line to find character positions of types
-        try {
-            val javaFile = java.io.File(java.net.URI(uri))
-            if (javaFile.exists()) {
-                val lines = javaFile.readLines()
-                if (position.line < lines.size) {
-                    val line = lines[position.line]
-                    val cursorChar = position.character
-                    
-                    // Find all type references in the line and their positions
-                    // Method signature format: .method modifiers name(params)returnType
-                    
-                    // First, check if cursor is on the method name (not a type)
-                    // Method name is between ".method" and "("
-                    val methodKeywordIndex = line.indexOf(".method")
-                    val openParenIndex = line.indexOf('(', if (methodKeywordIndex >= 0) methodKeywordIndex else 0)
-                    
-                    if (methodKeywordIndex >= 0 && openParenIndex > methodKeywordIndex) {
-                        // Method name region is after ".method" and any modifiers, before "("
-                        // If cursor is in this region, don't navigate (user clicked method name, not a type)
-                        if (cursorChar < openParenIndex) {
-                            // Check if cursor is actually on a type in modifiers (rare but possible)
-                            // For now, if cursor is before "(", assume it's on method name/modifiers
-                            // and don't navigate to a type (return empty)
-                            // This prevents the bug where clicking method name goes to first param
-                            logger.debug("Cursor on method name or modifiers, not navigating")
-                            return emptyList()
-                        }
-                    }
-                    
-                    // Check return type position
-                    val returnClassName = TypeResolver.extractClassName(method.returnType)
-                    if (returnClassName != null && method.returnType.startsWith('L')) {
-                        // Find position of return type in line (after the closing paren)
-                        val returnTypeIndex = line.lastIndexOf(method.returnType)
-                        if (returnTypeIndex >= 0) {
-                            val returnTypeEnd = returnTypeIndex + method.returnType.length
-                            if (cursorChar >= returnTypeIndex && cursorChar <= returnTypeEnd) {
-                                // Cursor is on return type
-                                return findClassDefinition(returnClassName)
-                            }
-                        }
-                    }
-                    
-                    // Check parameter types positions
-                    // Find all occurrences of parameter types within the parentheses
-                    val closeParenIndex = line.indexOf(')', openParenIndex)
-                    if (closeParenIndex > 0 && cursorChar >= openParenIndex && cursorChar <= closeParenIndex) {
-                        // Cursor is within parameter region
-                        var searchStart = openParenIndex + 1
-                        for (param in method.parameters) {
-                            if (param.type.startsWith('L') || param.type.startsWith('[')) {
-                                val paramClassName = TypeResolver.extractClassName(param.type)
-                                if (paramClassName != null) {
-                                    // Find position of this param type in line starting from last search position
-                                    // This handles multiple occurrences correctly
-                                    val paramTypeIndex = line.indexOf(param.type, searchStart)
-                                    if (paramTypeIndex >= 0 && paramTypeIndex < closeParenIndex) {
-                                        val paramTypeEnd = paramTypeIndex + param.type.length
-                                        searchStart = paramTypeEnd  // Move search forward for next param
-                                        if (cursorChar >= paramTypeIndex && cursorChar <= paramTypeEnd) {
-                                            // Cursor is on this parameter type
-                                            return findClassDefinition(paramClassName)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                // Fallback for tests: File doesn't exist on filesystem (in-memory AST only)
-                // Navigate to return type or first parameter type (old behavior)
-                val returnClassName = TypeResolver.extractClassName(method.returnType)
-                if (returnClassName != null && method.returnType.startsWith('L')) {
-                    return findClassDefinition(returnClassName)
-                }
-                
-                for (param in method.parameters) {
-                    if (param.type.startsWith('L') || param.type.startsWith('[')) {
-                        val paramClassName = TypeResolver.extractClassName(param.type)
-                        if (paramClassName != null) {
-                            return findClassDefinition(paramClassName)
-                        }
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            logger.error("Error reading file for type resolution: $uri", e)
-            // Fallback on error: Navigate to return type or first parameter
+        val line = workspaceIndex.getLineContent(uri, position.line)
+        if (line == null) {
+            // Fallback for tests: no document content available
             val returnClassName = TypeResolver.extractClassName(method.returnType)
             if (returnClassName != null && method.returnType.startsWith('L')) {
                 return findClassDefinition(returnClassName)
             }
-            
             for (param in method.parameters) {
                 if (param.type.startsWith('L') || param.type.startsWith('[')) {
                     val paramClassName = TypeResolver.extractClassName(param.type)
@@ -379,11 +275,52 @@ class DefinitionProvider(
                     }
                 }
             }
+            return emptyList()
         }
-        
-        // If we reached here, cursor is not on any type reference
-        // (e.g., cursor on method name, modifiers, or in whitespace)
-        // Don't navigate - return empty
+
+        val cursorChar = position.character
+
+        // Check if cursor is on method name/modifiers (before "(")
+        val methodKeywordIndex = line.indexOf(".method")
+        val openParenIndex = line.indexOf('(', if (methodKeywordIndex >= 0) methodKeywordIndex else 0)
+        if (methodKeywordIndex >= 0 && openParenIndex > methodKeywordIndex && cursorChar < openParenIndex) {
+            logger.debug("Cursor on method name or modifiers, not navigating")
+            return emptyList()
+        }
+
+        // Check return type position
+        val returnClassName = TypeResolver.extractClassName(method.returnType)
+        if (returnClassName != null && method.returnType.startsWith('L')) {
+            val returnTypeIndex = line.lastIndexOf(method.returnType)
+            if (returnTypeIndex >= 0) {
+                val returnTypeEnd = returnTypeIndex + method.returnType.length
+                if (cursorChar >= returnTypeIndex && cursorChar <= returnTypeEnd) {
+                    return findClassDefinition(returnClassName)
+                }
+            }
+        }
+
+        // Check parameter types positions
+        val closeParenIndex = line.indexOf(')', openParenIndex)
+        if (closeParenIndex > 0 && cursorChar >= openParenIndex && cursorChar <= closeParenIndex) {
+            var searchStart = openParenIndex + 1
+            for (param in method.parameters) {
+                if (param.type.startsWith('L') || param.type.startsWith('[')) {
+                    val paramClassName = TypeResolver.extractClassName(param.type)
+                    if (paramClassName != null) {
+                        val paramTypeIndex = line.indexOf(param.type, searchStart)
+                        if (paramTypeIndex >= 0 && paramTypeIndex < closeParenIndex) {
+                            val paramTypeEnd = paramTypeIndex + param.type.length
+                            searchStart = paramTypeEnd
+                            if (cursorChar >= paramTypeIndex && cursorChar <= paramTypeEnd) {
+                                return findClassDefinition(paramClassName)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         return emptyList()
     }
     
@@ -398,55 +335,30 @@ class DefinitionProvider(
     ): List<Location> {
         // Field format: .field modifiers name:type = value
         // Navigate only if cursor is on the TYPE part, not on the name
-        
-        try {
-            val javaFile = java.io.File(java.net.URI(uri))
-            if (javaFile.exists()) {
-                val lines = javaFile.readLines()
-                if (position.line < lines.size) {
-                    val line = lines[position.line]
-                    val cursorChar = position.character
-                    
-                    // Find position of field type in line (after the colon ':')
-                    val colonIndex = line.indexOf(':')
-                    if (colonIndex >= 0 && cursorChar > colonIndex) {
-                        // Cursor is after the colon - might be on type
-                        val typeIndex = line.indexOf(field.type, colonIndex)
-                        if (typeIndex >= 0) {
-                            val typeEnd = typeIndex + field.type.length
-                            if (cursorChar >= typeIndex && cursorChar <= typeEnd) {
-                                // Cursor is on the type
-                                val className = TypeResolver.extractClassName(field.type)
-                                if (className != null) {
-                                    return findClassDefinition(className)
-                                }
-                            }
-                        }
-                    } else {
-                        // Cursor is before colon - on field name or modifiers
-                        // Don't navigate
-                        logger.debug("Cursor on field name or modifiers, not navigating")
-                        return emptyList()
-                    }
-                }
-            } else {
-                // Fallback for tests: File doesn't exist on filesystem (in-memory AST only)
-                // Navigate to type (old behavior)
-                val className = TypeResolver.extractClassName(field.type)
-                if (className != null) {
-                    return findClassDefinition(className)
-                }
-            }
-        } catch (e: Exception) {
-            logger.error("Error reading file for field type resolution: $uri", e)
-            // Fallback on error: Navigate to type
+        val line = workspaceIndex.getLineContent(uri, position.line)
+        if (line == null) {
+            // Fallback for tests: no document content available
             val className = TypeResolver.extractClassName(field.type)
-            if (className != null) {
-                return findClassDefinition(className)
-            }
+            if (className != null) return findClassDefinition(className)
+            return emptyList()
         }
-        
-        // If we reached here, cursor is not on the type reference
+
+        val cursorChar = position.character
+        val colonIndex = line.indexOf(':')
+        if (colonIndex >= 0 && cursorChar > colonIndex) {
+            val typeIndex = line.indexOf(field.type, colonIndex)
+            if (typeIndex >= 0) {
+                val typeEnd = typeIndex + field.type.length
+                if (cursorChar >= typeIndex && cursorChar <= typeEnd) {
+                    val className = TypeResolver.extractClassName(field.type)
+                    if (className != null) return findClassDefinition(className)
+                }
+            }
+        } else {
+            logger.debug("Cursor on field name or modifiers, not navigating")
+            return emptyList()
+        }
+
         return emptyList()
     }
     
@@ -463,16 +375,9 @@ class DefinitionProvider(
         position: Position,
         uri: String
     ): List<Location> {
-        // We need to read the file content for this temporary bridge
-        // In the future, all references will be in the AST
         try {
-            val javaFile = java.io.File(java.net.URI(uri))
-            if (!javaFile.exists()) return emptyList()
-            
-            val lines = javaFile.readLines()
-            if (position.line >= lines.size) return emptyList()
-            
-            val line = lines[position.line]
+            val line = workspaceIndex.getLineContent(uri, position.line)
+                ?: return emptyList()
             val charPos = position.character
             
             // BUGFIX: Ignore annotation keywords (system, runtime, build)
