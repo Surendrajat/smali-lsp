@@ -144,9 +144,7 @@ class SmaliParser {
                 val builder = ASTBuilder(uri, tokens)
                 ParseTreeWalker.DEFAULT.walk(builder, parseTree)
                 
-                val result = builder.build()
-                
-                result
+                builder.build()
             }
             
         } catch (e: Exception) {

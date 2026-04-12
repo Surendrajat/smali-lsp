@@ -47,9 +47,6 @@ class SmaliTextDocumentService(
     private val diagnosticProvider = DiagnosticProvider(parser, index)
     private var client: LanguageClient? = null
 
-    /** In-memory document content for open files (uri → content). */
-    private val documentContents = java.util.concurrent.ConcurrentHashMap<String, String>()
-    
     /**
      * Connect to client for sending notifications.
      */
@@ -72,7 +69,6 @@ class SmaliTextDocumentService(
         val content = params.textDocument.text
 
         logger.debug("didOpen: $uri")
-        documentContents[uri] = content
         index.setDocumentContent(uri, content)
 
         try {
@@ -111,7 +107,6 @@ class SmaliTextDocumentService(
         val content = changes[0].text
 
         logger.debug("didChange: $uri")
-        documentContents[uri] = content
         index.setDocumentContent(uri, content)
 
         try {
@@ -134,7 +129,6 @@ class SmaliTextDocumentService(
      */
     override fun didClose(params: DidCloseTextDocumentParams) {
         val uri = params.textDocument.uri
-        documentContents.remove(uri)
         index.removeDocumentContent(uri)
         logger.debug("didClose: $uri (keeping in index)")
         // Do NOT remove from index - learned from V1 bug
@@ -395,17 +389,6 @@ class SmaliTextDocumentService(
      * Get line content from in-memory buffer (preferred) or disk (fallback).
      */
     internal fun getLineFromBuffer(uri: String, line: Int): String {
-        // Prefer in-memory content (always up-to-date with unsaved edits)
-        val content = documentContents[uri]
-        if (content != null) {
-            val lines = content.lines()
-            return if (line in lines.indices) lines[line] else ""
-        }
-        // Fallback to disk
-        return try {
-            val path = java.net.URI(uri).let { java.io.File(it) }
-            val lines = path.readLines()
-            if (line in lines.indices) lines[line] else ""
-        } catch (_: Exception) { "" }
+        return index.getLineContent(uri, line) ?: ""
     }
 }
