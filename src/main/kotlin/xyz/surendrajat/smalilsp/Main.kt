@@ -309,7 +309,8 @@ class SmaliLanguageServer : LanguageServer {
         // Completion
         capabilities.setCompletionProvider(CompletionOptions(false, listOf("L", ">", "/")))
 
-        val serverInfo = ServerInfo("Smali Language Server", "1.0.0")
+        val versionInfo = loadVersionInfo()
+        val serverInfo = ServerInfo("Smali Language Server", versionInfo.version)
         return InitializeResult(capabilities, serverInfo)
     }
     

@@ -85,8 +85,8 @@ tasks.test {
     // Too many forks OOM; too few wastes time. 4 is a safe default.
     maxParallelForks = minOf(4, Runtime.getRuntime().availableProcessors())
     
-    // Fail fast
-    failFast = false
+    // Fail on first test failure
+    failFast = true
 }
 
 tasks.jacocoTestReport {
@@ -136,7 +136,7 @@ tasks.jar {
 tasks.shadowJar {
     archiveBaseName.set("smali-lsp")
     archiveClassifier.set("")
-    archiveVersion.set("1.3.0")
+    archiveVersion.set(project.version.toString())
 
     manifest {
         attributes["Main-Class"] = "xyz.surendrajat.smalilsp.MainKt"
