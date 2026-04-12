@@ -24,7 +24,7 @@ class HoverProvider(
     private val workspaceIndex: WorkspaceIndex
 ) {
     companion object {
-        private val CLASS_REF_PATTERN = Regex("""L[a-zA-Z0-9/${'$'}_-]+;""")
+        private val CLASS_REF_PATTERN = Regex("""L[^;\s]+;""")
     }
 
 
@@ -57,8 +57,10 @@ class HoverProvider(
                 if (position.line == method.range.start.line) {
                     hoverForMethodDeclaration(file, method, position, lineContent)
                 } else {
-                    // Inside method body but not on an AST-captured instruction
-                    lineContent?.let { hoverForOpcodeKeyword(it, position.character) }
+                    // Inside method body but not on an AST-captured instruction.
+                    // Try directives first (.catch, .annotation, etc.) then opcodes.
+                    hoverForDirectiveLine(lineContent, position)
+                        ?: lineContent?.let { hoverForOpcodeKeyword(it, position.character) }
                 }
             }
 
@@ -414,14 +416,6 @@ class HoverProvider(
         return Hover(MarkupContent(MarkupKind.MARKDOWN, md))
     }
     
-    /**
-     * Extract element class name from array type descriptor.
-     * Returns in DESCRIPTOR format (La0/a3;) for index lookup.
-     * 
-     * [La0/a3; -> La0/a3;
-     * [[Ljava/lang/String; -> Ljava/lang/String;
-     * Ljava/lang/Object; -> Ljava/lang/Object;
-     */
     /**
      * Extracts the base element class name from an array type descriptor.
      * 

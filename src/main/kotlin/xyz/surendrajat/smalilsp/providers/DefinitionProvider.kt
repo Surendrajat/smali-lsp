@@ -89,10 +89,14 @@ class DefinitionProvider(
             }
             
             node.first == NodeType.METHOD -> {
-                // On method definition - only navigate to types in signature
-                // Don't navigate to method itself (already at definition)
                 val method = node.second as MethodDefinition
-                findTypeInMethodSignature(method, position, uri)
+                if (position.line == method.range.start.line) {
+                    // On method declaration — navigate to types in signature
+                    findTypeInMethodSignature(method, position, uri)
+                } else {
+                    // Inside method body on a directive (.catch, .annotation, etc.)
+                    findClassReferenceAtPosition(file, position, uri)
+                }
             }
             
             node.first == NodeType.FIELD -> {
