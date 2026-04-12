@@ -482,8 +482,8 @@ class ReferenceProvider(
         if (position.character >= typeIndex && position.character <= typeEnd) {
             // Extract the actual class name from array types
             // [LClassName; -> LClassName;, [[LClassName; -> LClassName;
-            return if (type.startsWith("[") && type.contains("L")) {
-                type.trimStart('[')
+            return if (type.startsWith("[")) {
+                if (type.contains("L")) type.trimStart('[') else null
             } else {
                 type
             }
