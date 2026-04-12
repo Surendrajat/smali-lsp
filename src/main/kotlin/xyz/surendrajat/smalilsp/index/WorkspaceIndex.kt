@@ -64,6 +64,9 @@ class WorkspaceIndex {
     // Only populated for files open in the editor (didOpen/didChange)
     // Removed on didClose to bound memory to open editor tabs
     private val documentContents = ConcurrentHashMap<String, String>()
+
+    // Simple name → Set<full class names> (reverse index for O(1) findClassesBySimpleName)
+    private val simpleNameIndex = ConcurrentHashMap<String, MutableSet<String>>()
     
     /**
      * Index a smali file. Thread-safe.
@@ -81,6 +84,13 @@ class WorkspaceIndex {
         files[className] = file
         classToUri[className] = file.uri
         uriToClass[file.uri] = className
+
+        // Update simple name index for O(1) lookups
+        val simpleName = extractSimpleNameFromClassName(className)
+        if (simpleName != null) {
+            simpleNameIndex.computeIfAbsent(simpleName) { ConcurrentHashMap.newKeySet() }
+                .add(className)
+        }
 
         // Index method declarations
         file.methods.forEach { method ->
@@ -177,6 +187,12 @@ class WorkspaceIndex {
     private fun removeOldEntries(oldFile: SmaliFile) {
         val className = oldFile.classDefinition.name
         val uri = oldFile.uri
+
+        // Remove simple name index entry
+        extractSimpleNameFromClassName(className)?.let { simpleName ->
+            simpleNameIndex[simpleName]?.remove(className)
+        }
+
         // Remove method declarations
         oldFile.methods.forEach { method ->
             val sig = methodSignature(className, method.name, method.descriptor)
@@ -260,12 +276,11 @@ class WorkspaceIndex {
     /**
      * Find classes by simple name (e.g., "MainActivity" matches "Lcom/example/MainActivity;").
      * Returns all matching classes since simple names are not unique.
+     * O(1) lookup via simpleNameIndex.
      */
     fun findClassesBySimpleName(simpleName: String): List<SmaliFile> {
-        val suffix = "/$simpleName;"
-        return files.entries
-            .filter { it.key.endsWith(suffix) }
-            .map { it.value }
+        val classNames = simpleNameIndex[simpleName] ?: return emptyList()
+        return classNames.mapNotNull { files[it] }
     }
     
     /**
@@ -463,6 +478,7 @@ class WorkspaceIndex {
      */
     fun getAllSubclasses(className: String): Set<String> {
         val result = mutableSetOf<String>()
+        val visited = mutableSetOf(className) // Track visited including root to handle cycles
         val queue = ArrayDeque<String>()
         queue.add(className)
 
@@ -471,10 +487,16 @@ class WorkspaceIndex {
             val directSubs = subclassIndex[current] ?: emptySet()
             val directImpls = implementorsIndex[current] ?: emptySet()
             for (sub in directSubs) {
-                if (result.add(sub)) queue.add(sub)
+                if (visited.add(sub)) {
+                    result.add(sub)
+                    queue.add(sub)
+                }
             }
             for (impl in directImpls) {
-                if (result.add(impl)) queue.add(impl)
+                if (visited.add(impl)) {
+                    result.add(impl)
+                    queue.add(impl)
+                }
             }
         }
         return result
@@ -587,6 +609,7 @@ class WorkspaceIndex {
      */
     fun setDocumentContent(uri: String, content: String) {
         documentContents[uri] = content
+        documentLines.remove(uri) // Invalidate cached lines
     }
 
     /**
@@ -595,7 +618,11 @@ class WorkspaceIndex {
      */
     fun removeDocumentContent(uri: String) {
         documentContents.remove(uri)
+        documentLines.remove(uri)
     }
+
+    /** Cached split lines for open documents — avoids re-splitting on every getLineContent call. */
+    private val documentLines = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
 
     /**
      * Get a specific line from a document.
@@ -606,10 +633,10 @@ class WorkspaceIndex {
      * @return Line content or null if unavailable
      */
     fun getLineContent(uri: String, lineIndex: Int): String? {
-        // Fast path: check in-memory content (open files)
+        // Fast path: check cached lines (open files)
         val content = documentContents[uri]
         if (content != null) {
-            val lines = content.lines()
+            val lines = documentLines.getOrPut(uri) { content.lines() }
             return if (lineIndex in lines.indices) lines[lineIndex] else null
         }
 
@@ -641,6 +668,8 @@ class WorkspaceIndex {
         fieldUsages.clear()
         classRefLocations.clear()
         documentContents.clear()
+        documentLines.clear()
+        simpleNameIndex.clear()
     }
     
     private fun methodSignature(className: String, methodName: String, descriptor: String): String {
@@ -649,6 +678,13 @@ class WorkspaceIndex {
     
     private fun fieldSignature(className: String, fieldName: String): String {
         return "$className->$fieldName"
+    }
+
+    /** Extract simple name from full class name: "Lcom/example/MyClass;" → "MyClass" */
+    private fun extractSimpleNameFromClassName(className: String): String? {
+        val cleaned = className.removePrefix("L").removeSuffix(";")
+        if (cleaned.isEmpty()) return null
+        return cleaned.substringAfterLast('/')
     }
 }
 
