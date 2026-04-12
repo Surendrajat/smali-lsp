@@ -5,6 +5,7 @@ import org.eclipse.lsp4j.SymbolInformation
 import org.eclipse.lsp4j.SymbolKind
 import xyz.surendrajat.smalilsp.core.SmaliFile
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
+import xyz.surendrajat.smalilsp.util.ClassUtils
 
 /**
  * Provides workspace-wide symbol search.
@@ -23,7 +24,7 @@ import xyz.surendrajat.smalilsp.index.WorkspaceIndex
  * 3. Check if symbol name contains query substring
  * 4. Support fuzzy matching: "FBAdapter" matches "FeedbackAdapter"
  * 5. Rank results by match quality (exact > prefix > contains)
- * 6. Return up to 100 results for performance
+ * 6. Return up to 500 results for performance
  */
 class WorkspaceSymbolProvider(
     private val index: WorkspaceIndex
@@ -201,13 +202,6 @@ class WorkspaceSymbolProvider(
      * - "La/b/c/q;" -> "q"
      */
     private fun extractSimpleName(fullName: String): String {
-        // Remove leading 'L' and trailing ';'
-        val cleaned = fullName.removePrefix("L").removeSuffix(";")
-        
-        // Get the last part after '/' (package separator)
-        val afterSlash = cleaned.substringAfterLast('/')
-        
-        // Get the last part after '$' (inner class separator) if present
-        return afterSlash.substringAfterLast('$')
+        return ClassUtils.extractSimpleName(fullName)
     }
 }

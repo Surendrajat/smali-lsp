@@ -130,23 +130,6 @@ data class FieldDefinition(
 )
 
 /**
- * References to symbols (for goto definition, find references)
- */
-data class SymbolReference(
-    val symbolName: String,
-    val symbolType: SymbolType,
-    val range: Range
-)
-
-enum class SymbolType {
-    CLASS,
-    METHOD,
-    FIELD,
-    LABEL,
-    PARAMETER
-}
-
-/**
  * Instruction-level AST for navigation.
  * Only critical instructions that reference symbols (for goto definition).
  */

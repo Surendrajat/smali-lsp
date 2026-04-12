@@ -37,8 +37,8 @@ class DefinitionProvider(
     private val logger = LoggerFactory.getLogger(DefinitionProvider::class.java)
     
     companion object {
-        // Regex for temporary bridge until instruction-level AST
-        // Only used for extracting class references from within lines
+        // Regex for extracting class references from within lines
+        // Only used for directives not yet modeled as AST nodes
         private val CLASS_PATTERN = Regex("""L[^;\s]+;""")
     }
     
@@ -65,7 +65,7 @@ class DefinitionProvider(
         return when {
             node == null -> {
                 // Not on any node, might be on a reference within a line
-                // This is temporary until we have instruction-level AST
+                // Handles directives not yet modeled as AST nodes (.super, .implements, etc.)
                 findClassReferenceAtPosition(file, position, uri)
             }
             
@@ -450,7 +450,6 @@ class DefinitionProvider(
     
     /**
      * Extract class name from a line.
-     * Temporary helper until instruction-level AST.
      */
     private fun extractClassName(line: String): String? {
         val match = CLASS_PATTERN.find(line)

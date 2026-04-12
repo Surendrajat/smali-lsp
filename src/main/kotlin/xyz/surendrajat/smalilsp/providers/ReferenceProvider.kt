@@ -555,7 +555,6 @@ class ReferenceProvider(
                 }
                 '[' -> {
                     // Array type
-                    val arrayStart = i
                     while (i < descriptor.length && descriptor[i] == '[') {
                         i++
                     }

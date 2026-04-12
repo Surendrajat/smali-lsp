@@ -41,12 +41,14 @@ class CompletionProvider(
             trimmed.startsWith(".implements ") -> completeClassNames(trimmed.removePrefix(".implements ").trim(), position)
 
             // L-prefix type being typed anywhere (method descriptors, field types, instructions)
-            extractPartialClassName(trimmed) != null -> completeClassNames(extractPartialClassName(trimmed)!!, position)
-
-            // Instruction opcode at start of line (inside method body)
-            !trimmed.startsWith(".") && !trimmed.startsWith("#") -> completeOpcodes(trimmed, position)
-
-            else -> CompletionList(false, emptyList())
+            else -> extractPartialClassName(trimmed)?.let { partial ->
+                completeClassNames(partial, position)
+            } ?: if (!trimmed.startsWith(".") && !trimmed.startsWith("#")) {
+                // Instruction opcode at start of line (inside method body)
+                completeOpcodes(trimmed, position)
+            } else {
+                CompletionList(false, emptyList())
+            }
         }
     }
 

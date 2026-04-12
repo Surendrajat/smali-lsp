@@ -252,6 +252,5 @@ class CodeLensProviderTest {
         assertEquals("Lcom/example/Foo;", data.get("className").asString)
         assertEquals("calculate", data.get("memberName").asString)
         assertEquals("method", data.get("memberType").asString)
-        assertEquals("file:///test/Foo.smali", data.get("uri").asString)
     }
 }

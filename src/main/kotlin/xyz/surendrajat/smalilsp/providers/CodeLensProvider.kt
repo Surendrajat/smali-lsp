@@ -32,7 +32,6 @@ class CodeLensProvider(
             data.addProperty("memberName", method.name)
             data.addProperty("memberType", "method")
             data.addProperty("descriptor", method.descriptor)
-            data.addProperty("uri", uri)
             lenses.add(CodeLens(method.range, null, data))
         }
 
@@ -41,7 +40,6 @@ class CodeLensProvider(
             data.addProperty("className", className)
             data.addProperty("memberName", field.name)
             data.addProperty("memberType", "field")
-            data.addProperty("uri", uri)
             lenses.add(CodeLens(field.range, null, data))
         }
 
@@ -63,7 +61,6 @@ class CodeLensProvider(
         val memberName = data.get("memberName")?.asString ?: ""
         val memberType = data.get("memberType")?.asString ?: ""
         val descriptor = data.get("descriptor")?.asString ?: ""
-        val uri = data.get("uri")?.asString ?: ""
 
         val count = when (memberType) {
             "method" -> countMethodReferences(className, memberName, descriptor)
