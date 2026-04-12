@@ -24,7 +24,7 @@ class HoverProvider(
     private val workspaceIndex: WorkspaceIndex
 ) {
     companion object {
-        private val CLASS_REF_PATTERN = Regex("""L[a-zA-Z0-9/$]+;""")
+        private val CLASS_REF_PATTERN = Regex("""L[a-zA-Z0-9/${'$'}_-]+;""")
     }
 
 
@@ -179,7 +179,7 @@ class HoverProvider(
                 append("**Fields:** ${file.fields.size}")
             }
             
-            return Hover(MarkupContent("markdown", md))
+            return Hover(MarkupContent(MarkupKind.MARKDOWN, md))
         }
         return null
     }
@@ -277,7 +277,7 @@ class HoverProvider(
             append("**Returns:** `$returnType`")
         }
         
-        return Hover(MarkupContent("markdown", md))
+        return Hover(MarkupContent(MarkupKind.MARKDOWN, md))
     }
     
     /**
@@ -294,7 +294,7 @@ class HoverProvider(
             append("**Type:** `${TypeResolver.toReadableName(field.type)}`")
         }
         
-        return Hover(MarkupContent("markdown", md))
+        return Hover(MarkupContent(MarkupKind.MARKDOWN, md))
     }
     
     /**
@@ -411,7 +411,7 @@ class HoverProvider(
                 append("*Not found in workspace*")
             }
         }
-        return Hover(MarkupContent("markdown", md))
+        return Hover(MarkupContent(MarkupKind.MARKDOWN, md))
     }
     
     /**
@@ -497,7 +497,7 @@ class HoverProvider(
                 append("*Not found in workspace*")
             }
         }
-        return Hover(MarkupContent("markdown", md))
+        return Hover(MarkupContent(MarkupKind.MARKDOWN, md))
     }
     
     /**
@@ -523,7 +523,7 @@ class HoverProvider(
                 append("*Not found in workspace*")
             }
         }
-        return Hover(MarkupContent("markdown", md))
+        return Hover(MarkupContent(MarkupKind.MARKDOWN, md))
     }
     
     /**
@@ -641,30 +641,33 @@ class HoverProvider(
      */
     private fun hoverForDirectiveLine(lineContent: String?, position: Position): Hover? {
         try {
-            val line = (lineContent ?: return null).trim()
+            val line = lineContent ?: return null
+            val trimmed = line.trim()
             
             // Check for .super directive
-            if (line.startsWith(".super ")) {
-                val className = line.substring(7).trim()
+            if (trimmed.startsWith(".super ")) {
+                val className = trimmed.substring(7).trim()
                 return hoverForClassReference(className)
             }
             
             // Check for .implements directive
-            if (line.startsWith(".implements ")) {
-                val className = line.substring(12).trim()
+            if (trimmed.startsWith(".implements ")) {
+                val className = trimmed.substring(12).trim()
                 return hoverForClassReference(className)
             }
             
             // Check for .catch directive
             // Format: .catch Ljava/lang/Exception; {:try_start_0 .. :try_end_0} :catch_0
-            if (line.startsWith(".catch ")) {
-                // Extract class name - find first 'L' and ending ';'
-                val catchClassStart = line.indexOf('L', 7) // After ".catch "
+            // Use original untrimmed line for position comparisons
+            if (trimmed.startsWith(".catch ")) {
+                // Extract class name - find first 'L' and ending ';' in the UNTRIMMED line
+                val catchKeywordIndex = line.indexOf(".catch")
+                val catchClassStart = line.indexOf('L', catchKeywordIndex + 6)
                 if (catchClassStart >= 0) {
                     val catchClassEnd = line.indexOf(';', catchClassStart)
                     if (catchClassEnd > catchClassStart) {
                         val className = line.substring(catchClassStart, catchClassEnd + 1)
-                        // Check if cursor is anywhere on the class reference
+                        // Check if cursor is anywhere on the class reference (untrimmed coordinates)
                         if (position.character >= catchClassStart && position.character <= catchClassEnd) {
                             return hoverForClassReference(className)
                         }
@@ -672,7 +675,7 @@ class HoverProvider(
                 }
             }
             
-            // Fallback: Check for any class reference in the line
+            // Fallback: Check for any class reference in the UNTRIMMED line
             // This handles .annotation, .parameter, and other directives with class references
             for (match in CLASS_REF_PATTERN.findAll(line)) {
                 if (position.character >= match.range.first && position.character <= match.range.last) {
