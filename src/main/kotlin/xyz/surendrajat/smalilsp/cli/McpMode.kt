@@ -154,9 +154,11 @@ class McpMode {
             val duration = System.currentTimeMillis() - startTime
             val stats = newIndex.getStats()
 
+            val failedMsg = if (result.filesFailed > 0) "Failed: ${result.filesFailed}\n" else ""
             toolResult(
                 "Successfully indexed $directory\n" +
-                        "Files: ${result.filesSucceeded}\n" +
+                        "Files: ${result.filesSucceeded}/${result.filesProcessed}\n" +
+                        failedMsg +
                         "Time: ${duration}ms\n" +
                         "Classes: ${stats.classes}, Methods: ${stats.methods}, Fields: ${stats.fields}, Strings: ${stats.strings}\n\n" +
                         "Index is now in memory. Subsequent queries will be fast (<1s)."

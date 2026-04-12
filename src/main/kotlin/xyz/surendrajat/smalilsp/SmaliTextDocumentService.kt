@@ -111,16 +111,14 @@ class SmaliTextDocumentService(
         index.setDocumentContent(uri, content)
 
         try {
-            val smaliFile = parser.parse(uri, content)
-            if (smaliFile != null) {
+            // Parse once — reuse for both indexing and diagnostics
+            val parseResult = parser.parseWithErrors(uri, content)
+            parseResult.smaliFile?.let { smaliFile ->
                 index.indexFile(smaliFile)
                 logger.debug("Re-indexed: $uri")
-            } else {
-                logger.warn("Failed to re-parse: $uri")
-            }
+            } ?: logger.warn("Failed to re-parse: $uri")
 
-            // Diagnostics on user edits only
-            val diagnostics = diagnosticProvider.computeDiagnostics(uri, content)
+            val diagnostics = diagnosticProvider.computeDiagnosticsFromParseResult(uri, parseResult)
             publishDiagnostics(uri, diagnostics)
         } catch (e: Exception) {
             logger.error("Error processing didChange for $uri", e)

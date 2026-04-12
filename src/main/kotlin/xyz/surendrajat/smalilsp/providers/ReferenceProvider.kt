@@ -237,7 +237,6 @@ class ReferenceProvider(
         return findFieldReferences(
             targetClassName,
             targetField.name,
-            targetField.type,
             includeDeclaration,
             targetField.range
         )
@@ -252,7 +251,6 @@ class ReferenceProvider(
     private fun findFieldReferences(
         targetClassName: String,
         fieldName: String,
-        fieldType: String,
         includeDeclaration: Boolean,
         declarationRange: Range? = null
     ): List<Location> {
@@ -361,11 +359,11 @@ class ReferenceProvider(
                         findFieldReferences(symbol.className, field, includeDeclaration)
                     } else {
                         // Field not found in workspace class - still search for references
-                        findFieldReferences(symbol.className, symbol.fieldName, symbol.fieldType, false)
+                        findFieldReferences(symbol.className, symbol.fieldName, false)
                     }
                 } else {
                     // SDK class - search for references without definition
-                    findFieldReferences(symbol.className, symbol.fieldName, symbol.fieldType, false)
+                    findFieldReferences(symbol.className, symbol.fieldName, false)
                 }
             }
         }

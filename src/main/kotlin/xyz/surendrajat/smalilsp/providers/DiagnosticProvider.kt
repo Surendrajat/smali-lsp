@@ -47,17 +47,35 @@ class DiagnosticProvider(
     }
     
     /**
+     * Compute diagnostics from an already-parsed result.
+     * Avoids re-parsing when the caller already has a ParseResult (e.g. didChange).
+     */
+    fun computeDiagnosticsFromParseResult(uri: String, parseResult: SmaliParser.ParseResult): List<Diagnostic> {
+        val diagnostics = mutableListOf<Diagnostic>()
+        diagnostics.addAll(convertSyntaxErrors(parseResult.syntaxErrors))
+        parseResult.smaliFile?.let { file ->
+            diagnostics.addAll(computeSemanticDiagnostics(uri, file))
+        }
+        return diagnostics
+    }
+
+    /**
      * Parse file with error recovery enabled.
      * Collects syntax errors but continues parsing.
      */
     private fun parseWithErrorRecovery(uri: String, content: String): ParseResult {
         val parseResult = parser.parseWithErrors(uri, content)
-        
-        // Convert parser syntax errors to LSP diagnostics
-        val diagnostics = parseResult.syntaxErrors.map { error ->
+        return ParseResult(
+            smaliFile = parseResult.smaliFile,
+            syntaxDiagnostics = convertSyntaxErrors(parseResult.syntaxErrors)
+        )
+    }
+
+    private fun convertSyntaxErrors(errors: List<SmaliParser.SyntaxError>): List<Diagnostic> {
+        return errors.map { error ->
             createDiagnostic(
                 range = Range(
-                    Position(error.line - 1, error.charPositionInLine), // LSP is 0-indexed
+                    Position(error.line - 1, error.charPositionInLine),
                     Position(error.line - 1, error.charPositionInLine + 10)
                 ),
                 message = error.message,
@@ -65,11 +83,6 @@ class DiagnosticProvider(
                 code = "syntax-error"
             )
         }
-        
-        return ParseResult(
-            smaliFile = parseResult.smaliFile,
-            syntaxDiagnostics = diagnostics
-        )
     }
     
     /**

@@ -118,11 +118,8 @@ class WorkspaceScanner(
         val content = file.readText(Charsets.UTF_8)
         
         val smaliFile = parser.parse(uri, content)
-        if (smaliFile != null) {
-            index.indexFile(smaliFile)
-        } else {
-            logger.warn("Parser returned null for $uri")
-        }
+            ?: throw IllegalStateException("Parse returned null for $uri")
+        index.indexFile(smaliFile)
     }
     
     /**

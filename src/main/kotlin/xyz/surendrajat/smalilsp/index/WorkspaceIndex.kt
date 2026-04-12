@@ -128,6 +128,10 @@ class WorkspaceIndex {
                         ) { ConcurrentHashMap.newKeySet() }.add(Location(file.uri, instr.range))
                         classRefLocations.computeIfAbsent(instr.className) { ConcurrentHashMap.newKeySet() }
                             .add(Location(file.uri, instr.range))
+                        extractClassFromType(instr.fieldType)?.let { refClass ->
+                            classRefLocations.computeIfAbsent(refClass) { ConcurrentHashMap.newKeySet() }
+                                .add(Location(file.uri, instr.range))
+                        }
                     }
                     is TypeInstruction -> {
                         classRefLocations.computeIfAbsent(instr.className) { ConcurrentHashMap.newKeySet() }
@@ -207,6 +211,9 @@ class WorkspaceIndex {
                         val sig = fieldSignature(instr.className, instr.fieldName)
                         fieldUsages[sig]?.removeIf { it.uri == uri }
                         classRefLocations[instr.className]?.removeIf { it.uri == uri }
+                        extractClassFromType(instr.fieldType)?.let { refClass ->
+                            classRefLocations[refClass]?.removeIf { it.uri == uri }
+                        }
                     }
                     is TypeInstruction -> {
                         classRefLocations[instr.className]?.removeIf { it.uri == uri }
