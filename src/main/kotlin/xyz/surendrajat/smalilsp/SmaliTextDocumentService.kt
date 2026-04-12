@@ -76,19 +76,23 @@ class SmaliTextDocumentService(
         index.setDocumentContent(uri, content)
 
         try {
-            // Skip re-parsing if already indexed from workspace scan
+            // Parse with error collection for diagnostics
+            val parseResult = parser.parseWithErrors(uri, content)
+            
+            // Index if not already indexed from workspace scan
             val existing = index.findFileByUri(uri)
             if (existing == null) {
-                val smaliFile = parser.parse(uri, content)
-                if (smaliFile != null) {
+                parseResult.smaliFile?.let { smaliFile ->
                     index.indexFile(smaliFile)
                     logger.debug("Indexed: $uri (${smaliFile.classDefinition.name})")
-                } else {
-                    logger.warn("Failed to parse: $uri")
-                }
+                } ?: logger.warn("Failed to parse: $uri")
             } else {
                 logger.debug("Already indexed: $uri")
             }
+
+            // Always publish diagnostics on open
+            val diagnostics = diagnosticProvider.computeDiagnosticsFromParseResult(uri, parseResult)
+            publishDiagnostics(uri, diagnostics)
         } catch (e: Exception) {
             logger.error("Error processing didOpen for $uri", e)
         }
