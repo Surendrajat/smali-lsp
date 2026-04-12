@@ -302,7 +302,7 @@ class McpMode {
                 toolResult(gson.toJson(mapOf("hover" to null)))
             } else {
                 toolResult(gson.toJson(mapOf(
-                    "contents" to hover.contents.right.value,
+                    "contents" to (hover.contents?.right?.value ?: ""),
                     "range" to hover.range?.let { range ->
                         mapOf(
                             "start" to mapOf("line" to range.start.line, "character" to range.start.character),
