@@ -151,7 +151,7 @@ class SmaliParser {
             
         } catch (e: Exception) {
             logger.error("Failed to parse $uri", e)
-            syntaxErrors.add(SyntaxError(0, 0, "Parse error: ${e.message}"))
+            syntaxErrors.add(SyntaxError(1, 0, "Parse error: ${e.message}"))
             null
         }
         

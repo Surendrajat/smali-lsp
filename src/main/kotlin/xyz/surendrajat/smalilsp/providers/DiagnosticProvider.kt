@@ -73,10 +73,11 @@ class DiagnosticProvider(
 
     private fun convertSyntaxErrors(errors: List<SmaliParser.SyntaxError>): List<Diagnostic> {
         return errors.map { error ->
+            val line = maxOf(0, error.line - 1)
             createDiagnostic(
                 range = Range(
-                    Position(error.line - 1, error.charPositionInLine),
-                    Position(error.line - 1, error.charPositionInLine + 10)
+                    Position(line, error.charPositionInLine),
+                    Position(line, error.charPositionInLine + 10)
                 ),
                 message = error.message,
                 severity = DiagnosticSeverity.Error,
