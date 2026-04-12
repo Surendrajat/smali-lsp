@@ -289,34 +289,41 @@ class WorkspaceIndex {
      * Can return multiple locations (overloads, overrides).
      */
     fun findMethod(className: String, methodName: String, descriptor: String): Set<Location> {
+        return findMethodInternal(className, methodName, descriptor, mutableSetOf())
+    }
+
+    private fun findMethodInternal(
+        className: String, methodName: String, descriptor: String, visited: MutableSet<String>
+    ): Set<Location> {
+        if (!visited.add(className)) return emptySet() // cycle protection
+
         // Try direct lookup first (fast path)
         val signature = methodSignature(className, methodName, descriptor)
         val directMatch = methodLocations[signature]
         if (directMatch != null && directMatch.isNotEmpty()) {
             return directMatch
         }
-        
+
         // If not found, search up class hierarchy (parent classes and interfaces)
-        // This handles inherited methods
         val classFile = files[className] ?: return emptySet()
-        
+
         // Check superclass
         val superClass = classFile.classDefinition.superClass
         if (superClass != null && superClass != "Ljava/lang/Object;") {
-            val parentResult = findMethod(superClass, methodName, descriptor)
+            val parentResult = findMethodInternal(superClass, methodName, descriptor, visited)
             if (parentResult.isNotEmpty()) {
                 return parentResult
             }
         }
-        
+
         // Check interfaces
         for (interfaceName in classFile.classDefinition.interfaces) {
-            val interfaceResult = findMethod(interfaceName, methodName, descriptor)
+            val interfaceResult = findMethodInternal(interfaceName, methodName, descriptor, visited)
             if (interfaceResult.isNotEmpty()) {
                 return interfaceResult
             }
         }
-        
+
         return emptySet()
     }
     
@@ -324,29 +331,32 @@ class WorkspaceIndex {
      * Find field definition.
      */
     fun findField(className: String, fieldName: String): Location? {
+        return findFieldInternal(className, fieldName, mutableSetOf())
+    }
+
+    private fun findFieldInternal(
+        className: String, fieldName: String, visited: MutableSet<String>
+    ): Location? {
+        if (!visited.add(className)) return null // cycle protection
+
         // Try direct lookup first (fast path)
         val signature = fieldSignature(className, fieldName)
         val directMatch = fieldLocations[signature]
         if (directMatch != null) {
             return directMatch
         }
-        
+
         // If not found, search up class hierarchy (parent classes)
-        // This handles inherited fields
         val classFile = files[className] ?: return null
-        
-        // Check superclass
+
         val superClass = classFile.classDefinition.superClass
         if (superClass != null && superClass != "Ljava/lang/Object;") {
-            val parentResult = findField(superClass, fieldName)
+            val parentResult = findFieldInternal(superClass, fieldName, visited)
             if (parentResult != null) {
                 return parentResult
             }
         }
-        
-        // Note: Interfaces don't have instance fields in Smali/JVM
-        // so we don't check interfaces for fields
-        
+
         return null
     }
     

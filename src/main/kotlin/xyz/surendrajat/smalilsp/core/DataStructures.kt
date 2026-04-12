@@ -89,9 +89,9 @@ fun Range.contains(position: Position): Boolean {
     if (line < startLine) return false
     if (line == startLine && char < startChar) return false
     
-    // Position is after range
+    // Position is at or after range end (LSP Range.end is exclusive)
     if (line > endLine) return false
-    if (line == endLine && char > endChar) return false
+    if (line == endLine && char >= endChar) return false
     
     return true
 }

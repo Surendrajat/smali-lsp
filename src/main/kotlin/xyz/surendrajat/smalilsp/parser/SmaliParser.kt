@@ -75,22 +75,25 @@ class SmaliParser {
      * @return ParseResult with file and errors
      */
     fun parseWithErrors(uri: String, content: String): ParseResult {
+        // Strip UTF-8 BOM if present (some editors add it)
+        val cleanContent = if (content.startsWith('\uFEFF')) content.substring(1) else content
+
         // Handle empty or whitespace-only files gracefully
-        if (content.isBlank()) {
+        if (cleanContent.isBlank()) {
             logger.debug("Skipping parse of empty file: $uri")
             return ParseResult(null, emptyList())
         }
         
         // Handle comment-only files (no .class directive)
-        if (!content.contains(".class")) {
+        if (!cleanContent.contains(".class")) {
             logger.debug("Skipping parse of file with no .class directive: $uri")
             return ParseResult(null, emptyList())
         }
-        
+
         val syntaxErrors = mutableListOf<SyntaxError>()
-        
+
         val smaliFile = try {
-            val charStream = CharStreams.fromString(content)
+            val charStream = CharStreams.fromString(cleanContent)
             val lexer = SmaliLexer(charStream)
             
             // Collect lexer errors
