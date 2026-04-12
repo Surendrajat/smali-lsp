@@ -487,6 +487,9 @@ class McpMode {
                 ?: return@addTool toolError("Missing required argument: 'method_name'")
             val descriptor = request.arguments?.get("descriptor")?.jsonPrimitive?.content
             val direction = request.arguments?.get("direction")?.jsonPrimitive?.content ?: "both"
+            if (direction !in listOf("incoming", "outgoing", "both")) {
+                return@addTool toolError("Invalid direction: '$direction'. Must be 'incoming', 'outgoing', or 'both'.")
+            }
 
             val classFile = index!!.findClass(className)
                 ?: return@addTool toolError("Class not found: $className")
@@ -644,6 +647,9 @@ class McpMode {
             val className = request.arguments?.get("class_name")?.jsonPrimitive?.content
                 ?: return@addTool toolError("Missing required argument: 'class_name'")
             val direction = request.arguments?.get("direction")?.jsonPrimitive?.content ?: "both"
+            if (direction !in listOf("supertypes", "subtypes", "both")) {
+                return@addTool toolError("Invalid direction: '$direction'. Must be 'supertypes', 'subtypes', or 'both'.")
+            }
 
             val provider = typeHierarchyProvider
                 ?: return@addTool toolError("No index loaded. Call smali_index first.")
