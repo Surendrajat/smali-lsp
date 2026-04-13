@@ -13,6 +13,7 @@ import xyz.surendrajat.smalilsp.providers.CompletionProvider
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import xyz.surendrajat.smalilsp.providers.HoverProvider
 import xyz.surendrajat.smalilsp.providers.ReferenceProvider
+import xyz.surendrajat.smalilsp.providers.RenameProvider
 import xyz.surendrajat.smalilsp.providers.TypeHierarchyProvider
 import xyz.surendrajat.smalilsp.cli.McpMode
 import org.slf4j.LoggerFactory
@@ -162,6 +163,7 @@ class SmaliLanguageServer : LanguageServer {
     private val typeHierarchyProvider = TypeHierarchyProvider(index)
     private val codeLensProvider = CodeLensProvider(index)
     private val completionProvider = CompletionProvider(index)
+    private val renameProvider = RenameProvider(index)
 
     // Text document service
     private val textDocumentService = SmaliTextDocumentService(
@@ -172,7 +174,8 @@ class SmaliLanguageServer : LanguageServer {
         callHierarchyProvider,
         typeHierarchyProvider,
         codeLensProvider,
-        completionProvider
+        completionProvider,
+        renameProvider
     )
     
     // Workspace service
@@ -308,6 +311,9 @@ class SmaliLanguageServer : LanguageServer {
 
         // Completion
         capabilities.setCompletionProvider(CompletionOptions(false, listOf("L", ">", "/")))
+
+        // Rename (with prepare support)
+        capabilities.setRenameProvider(RenameOptions(true))
 
         val versionInfo = loadVersionInfo()
         val serverInfo = ServerInfo("Smali Language Server", versionInfo.version)

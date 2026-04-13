@@ -2,6 +2,7 @@ package xyz.surendrajat.smalilsp
 
 import org.eclipse.lsp4j.*
 import org.eclipse.lsp4j.jsonrpc.messages.Either
+import org.eclipse.lsp4j.jsonrpc.messages.Either3
 import org.eclipse.lsp4j.services.LanguageClient
 import org.eclipse.lsp4j.services.TextDocumentService
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
@@ -13,6 +14,7 @@ import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import xyz.surendrajat.smalilsp.providers.DiagnosticProvider
 import xyz.surendrajat.smalilsp.providers.HoverProvider
 import xyz.surendrajat.smalilsp.providers.ReferenceProvider
+import xyz.surendrajat.smalilsp.providers.RenameProvider
 import xyz.surendrajat.smalilsp.providers.TypeHierarchyProvider
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CompletableFuture
@@ -39,7 +41,8 @@ class SmaliTextDocumentService(
     private val callHierarchyProvider: CallHierarchyProvider,
     private val typeHierarchyProvider: TypeHierarchyProvider,
     private val codeLensProvider: CodeLensProvider,
-    private val completionProvider: CompletionProvider
+    private val completionProvider: CompletionProvider,
+    private val renameProvider: RenameProvider
 ) : TextDocumentService {
     
     private val logger = LoggerFactory.getLogger(SmaliTextDocumentService::class.java)
@@ -381,6 +384,58 @@ class SmaliTextDocumentService(
             } catch (e: Exception) {
                 logger.error("Error in completion for $uri", e)
                 Either.forRight(CompletionList(false, emptyList()))
+            }
+        }
+    }
+
+    override fun prepareRename(params: PrepareRenameParams): CompletableFuture<Either3<Range, PrepareRenameResult, PrepareRenameDefaultBehavior>> {
+        val uri = params.textDocument.uri
+        val position = params.position
+
+        return CompletableFuture.supplyAsync {
+            try {
+                val result = renameProvider.prepareRename(uri, position)
+                    ?: throw org.eclipse.lsp4j.jsonrpc.ResponseErrorException(
+                        org.eclipse.lsp4j.jsonrpc.messages.ResponseError(
+                            org.eclipse.lsp4j.jsonrpc.messages.ResponseErrorCode.InvalidRequest,
+                            "Cannot rename this symbol",
+                            null
+                        )
+                    )
+                // Convert Either<Range, PrepareRenameResult> to Either3
+                if (result.isLeft) {
+                    Either3.forFirst(result.left)
+                } else {
+                    Either3.forSecond(result.right)
+                }
+            } catch (e: org.eclipse.lsp4j.jsonrpc.ResponseErrorException) {
+                throw e
+            } catch (e: Exception) {
+                logger.error("Error in prepareRename for $uri", e)
+                throw org.eclipse.lsp4j.jsonrpc.ResponseErrorException(
+                    org.eclipse.lsp4j.jsonrpc.messages.ResponseError(
+                        org.eclipse.lsp4j.jsonrpc.messages.ResponseErrorCode.InternalError,
+                        "Rename preparation failed",
+                        null
+                    )
+                )
+            }
+        }
+    }
+
+    override fun rename(params: RenameParams): CompletableFuture<WorkspaceEdit?> {
+        val uri = params.textDocument.uri
+        val position = params.position
+        val newName = params.newName
+
+        logger.debug("rename: $uri at ${position.line}:${position.character} -> $newName")
+
+        return CompletableFuture.supplyAsync {
+            try {
+                renameProvider.rename(uri, position, newName)
+            } catch (e: Exception) {
+                logger.error("Error in rename for $uri", e)
+                null
             }
         }
     }
