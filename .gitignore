@@ -20,6 +20,7 @@ apk*
 *.md
 !README.md
 !CHANGELOG.md
+!DESIGN.md
 *.sh
 *.txt
 !.github/

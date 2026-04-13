@@ -13,6 +13,7 @@ A Language Server Protocol (LSP) server with built-in MCP server for [Smali](htt
 - **Type Hierarchy** — supertypes/subtypes navigation for classes
 - **Code Lens** — inline reference counts on methods and fields
 - **Completion** — class names, method/field members, opcodes
+- **Rename** — rename methods, fields, and labels across workspace
 - **Document Symbols** — class outline with methods and fields
 - **Workspace Symbols** — fuzzy search across the entire codebase
 - **Diagnostics** — syntax errors and unresolved class references
@@ -144,9 +145,10 @@ Tested on real-world APKs (119K smali files, 118K classes, 560K methods):
 
 | Operation          | Avg Latency | Throughput       |
 | ------------------ | ----------- | ---------------- |
-| Goto Definition    | 0.26ms      | 4,011 ops/sec    |
+| Goto Definition    | <1ms        | ~4,000 ops/sec   |
+| Find References    | <1ms        | O(1) reverse index |
+| Hover              | <1ms        | —                |
 | Parsing / Indexing | ~0.3ms/file | ~3,300 files/sec |
-| Find References    | <1s         | —                |
 | Symbol Search      | <1s         | —                |
 
 - All queries (definition, references, symbols, hover) return in <1s after indexing
