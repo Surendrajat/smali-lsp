@@ -1,5 +1,47 @@
 # Changelog
 
+## [1.4.0] - 2026-04-13
+
+### Added
+
+- **Rename** provider — rename methods, fields, and labels across workspace
+  - Polymorphic-aware: renaming a method cascades to subclass overrides
+  - Supports rename from both declaration and usage sites
+  - `prepareRename` validation rejects `<init>`, `<clinit>`, and class names
+- **Instruction hover** — opcode documentation with format, description, and operands (218 Dalvik opcodes)
+- **Directive navigation** — hover and go-to-definition for directives inside method body (`.catch`, `.annotation`, `.implements`)
+- MCP: validate `direction` parameter in type hierarchy tools
+
+### Changed
+
+- **Find References**: O(1) reverse index lookups (was O(n) full scan) — <1ms instead of ~5s for large codebases
+- **Parsing**: micro-optimizations — SLL-only mode, fast-reject for non-smali files, bounded string pool
+- **Completion**: class names now show full path as label (e.g., `com/example/MyActivity`) with simple name as detail
+- Deduplicated document content storage (removed redundant buffers)
+
+### Fixed
+
+- Class completion double-L insertion bug (`LLcom/...` instead of `Lcom/...`)
+- Class names with digit-starting path components (e.g., `Lcom/1foo/Bar;`) now parse correctly
+- Field type class references extracted properly (e.g., hover on `.field` type works)
+- `extractClassRefFromFieldType` no longer returns `null` for primitive arrays
+- Cycle protection in `WorkspaceIndex` hierarchy traversal (prevents infinite loops)
+- `Range.contains` off-by-one error for end-of-range positions
+- BOM handling in parser (UTF-8 BOM stripped before parsing)
+- HoverProvider position bugs and pattern matching (correct cursor resolution)
+- Negative line positions in diagnostics (clamp to 0)
+- Diagnostics now published on `didOpen`, not just `didChange`
+- Dynamic project version in `ServerInfo` and shadow JAR (was hardcoded)
+- Defensive null handling in MCP hover content extraction
+- Parse failure reporting (errors propagated instead of silently swallowed)
+- Eliminated double-parse on `didOpen` (parse once, reuse)
+
+### Internal
+
+- Dead code removal, unified helpers, fixed stale comments
+- Comprehensive regression test suite for audit bug findings
+- Architecture and design documentation (`DESIGN.md`)
+
 ## [1.3.0] - 2026-04-06
 
 ### Added
