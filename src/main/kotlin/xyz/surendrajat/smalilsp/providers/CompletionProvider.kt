@@ -42,6 +42,7 @@ class CompletionProvider(
 
             // L-prefix type being typed anywhere (method descriptors, field types, instructions)
             else -> extractPartialClassName(trimmed)?.let { partial ->
+                // partial includes the 'L' prefix, replace range covers "Lpartial..."
                 completeClassNames(partial, position)
             } ?: if (!trimmed.startsWith(".") && !trimmed.startsWith("#")) {
                 // Instruction opcode at start of line (inside method body)
@@ -102,6 +103,8 @@ class CompletionProvider(
 
     private fun completeClassNames(partial: String, position: Position): CompletionList {
         val items = mutableListOf<CompletionItem>()
+        // Determine if partial includes the 'L' prefix (from extractPartialClassName)
+        val hasLPrefix = partial.startsWith("L")
         val normalizedPartial = partial.lowercase()
         val replaceRange = Range(
             Position(position.line, position.character - partial.length),
@@ -109,16 +112,29 @@ class CompletionProvider(
         )
 
         for (className in index.getClassNames()) {
+            // Match: partial against full class name or simple name
+            val classNameLower = className.lowercase()
             val simpleName = ClassUtils.extractSimpleName(className)
-            // Match against simple name or full path
-            if (simpleName.lowercase().startsWith(normalizedPartial) ||
-                className.lowercase().contains(normalizedPartial)
-            ) {
-                val item = CompletionItem(simpleName)
+            val simpleNameLower = simpleName.lowercase()
+
+            val matches = if (hasLPrefix) {
+                // L-prefix: match against full class name (e.g., "Lcom/" matches "Lcom/example/Foo;")
+                classNameLower.startsWith(normalizedPartial)
+            } else {
+                // Directive context (.super etc): match partial against simple name or path
+                simpleNameLower.startsWith(normalizedPartial) ||
+                    classNameLower.contains(normalizedPartial)
+            }
+
+            if (matches) {
+                // Strip L prefix and ; suffix for display: "com/example/MyClass"
+                val readablePath = className.removePrefix("L").removeSuffix(";")
+                val item = CompletionItem(readablePath)
                 item.kind = CompletionItemKind.Class
-                item.detail = className
+                item.detail = simpleName
+                // Insert the full class name; replaceRange covers the partial already typed
                 item.textEdit = Either.forLeft(TextEdit(replaceRange, className))
-                item.filterText = "$simpleName $className"
+                item.filterText = "$readablePath $simpleName"
                 items.add(item)
                 if (items.size >= 50) break
             }
@@ -151,8 +167,9 @@ class CompletionProvider(
     }
 
     /**
-     * Extract partial class name being typed.
+     * Extract partial class name being typed, including the leading 'L'.
      * Looks for an unclosed L-prefix type: "Lcom/example/My" (no trailing semicolon).
+     * Returns the full partial including 'L', e.g., "Lcom/example/My".
      */
     private fun extractPartialClassName(text: String): String? {
         // Find last 'L' that starts a type reference and isn't closed with ';'
@@ -162,8 +179,8 @@ class CompletionProvider(
         // If there's a semicolon, the type is complete — no completion needed
         if (afterL.contains(';')) return null
         // Must look like a partial class path (letters, digits, /, $)
-        if (afterL.isNotEmpty() && afterL.all { it.isLetterOrDigit() || it == '/' || it == '$' || it == '_' }) {
-            return afterL
+        if (afterL.isEmpty() || afterL.all { it.isLetterOrDigit() || it == '/' || it == '$' || it == '_' }) {
+            return text.substring(lastL) // Include the 'L' prefix
         }
         return null
     }

@@ -75,7 +75,9 @@ class CompletionProviderTest {
         val lineText = "    new-instance v0, Lcom/exam"
         val result = provider.provideCompletions("file:///test.smali", Position(0, lineText.length), lineText)
         assertTrue(result.items.isNotEmpty(), "Should complete partial class name")
-        assertTrue(result.items.any { it.detail == "Lcom/example/MyActivity;" })
+        assertTrue(result.items.any {
+            it.textEdit?.left?.newText == "Lcom/example/MyActivity;"
+        })
     }
 
     @Test
