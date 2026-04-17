@@ -181,6 +181,27 @@ class WorkspaceIndex {
     }
 
     /**
+     * Remove a file from the index completely (class entry + all references).
+     * Called when a file is deleted from disk — without this, the index would
+     * keep ghost class entries pointing at non-existent files, and features
+     * like "Go to Definition" would navigate to URIs that no longer exist.
+     *
+     * @param uri URI of the deleted file
+     * @return true if the file was indexed and has been removed
+     */
+    fun removeFile(uri: String): Boolean {
+        val className = findClassNameByUri(uri) ?: return false
+        val oldFile = files[className] ?: return false
+
+        removeOldEntries(oldFile)
+        files.remove(className)
+        classToUri.remove(className)
+        uriToClass.remove(oldFile.uri)
+        stringIndexDirty = true
+        return true
+    }
+
+    /**
      * Remove all index entries from a previously indexed file.
      * Called before re-indexing to prevent stale references.
      */

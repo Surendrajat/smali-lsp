@@ -203,7 +203,58 @@ class WorkspaceIndexTest {
         val locations = index.findMethod("Lcom/example/Test;", "nonExistent", "()V")
         assertTrue(locations.isEmpty())
     }
-    
+
+    @Test
+    fun `removeFile clears class entry and reverse references`() {
+        val uri = "file:///test/Deleted.smali"
+        val className = "Lcom/example/Deleted;"
+        val file = createTestFile(
+            className = className,
+            uri = uri,
+            methods = listOf(createTestMethod("foo")),
+            fields = listOf(createTestField("bar"))
+        )
+
+        // Another file references the class we're about to delete
+        val referrerUri = "file:///test/Referrer.smali"
+        val referrer = SmaliFile(
+            uri = referrerUri,
+            classDefinition = ClassDefinition(
+                name = "Lcom/example/Referrer;",
+                range = range(0, 0, 1, 0),
+                modifiers = setOf("public"),
+                superClass = className,
+                interfaces = emptyList()
+            ),
+            methods = emptyList(),
+            fields = emptyList()
+        )
+
+        index.indexFile(file)
+        index.indexFile(referrer)
+
+        assertNotNull(index.findClass(className))
+        assertTrue(index.getDirectSubclasses(className).contains("Lcom/example/Referrer;"))
+
+        val removed = index.removeFile(uri)
+        assertTrue(removed, "removeFile should return true for an indexed file")
+
+        // Class entry gone
+        assertNull(index.findClass(className))
+        // Reverse lookup gone
+        assertNull(index.findFileByUri(uri))
+        // Method/field entries gone
+        assertTrue(index.findMethod(className, "foo", "()V").isEmpty())
+        assertNull(index.findField(className, "bar"))
+        // Subclass hierarchy still has referrer but no parent entry
+        assertTrue(index.getDirectSubclasses(className).contains("Lcom/example/Referrer;"))
+    }
+
+    @Test
+    fun `removeFile returns false for unindexed uri`() {
+        assertFalse(index.removeFile("file:///never-indexed.smali"))
+    }
+
     // Helper methods to create test data
     
     private fun createTestFile(
