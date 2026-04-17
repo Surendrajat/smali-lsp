@@ -621,6 +621,14 @@ class WorkspaceIndex {
         documentLines.remove(uri)
     }
 
+    /**
+     * Get full document content for an open file.
+     * Returns null if file is not in the buffer (not open or already closed).
+     */
+    fun getDocumentContent(uri: String): String? {
+        return documentContents[uri]
+    }
+
     /** Cached split lines for open documents — avoids re-splitting on every getLineContent call. */
     private val documentLines = java.util.concurrent.ConcurrentHashMap<String, List<String>>()
 

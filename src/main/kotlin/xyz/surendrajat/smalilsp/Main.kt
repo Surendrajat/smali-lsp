@@ -330,10 +330,16 @@ class SmaliLanguageServer : LanguageServer {
             CompletableFuture.runAsync {
                 try {
                     indexWorkspace(pendingWorkspaceFolders)
+                    textDocumentService.indexingComplete = true
+                    textDocumentService.refreshDiagnosticsForOpenFiles()
                 } catch (e: Exception) {
                     logger.error("Failed to index workspace", e)
+                    // Mark indexing complete even on failure so diagnostics aren't permanently suppressed
+                    textDocumentService.indexingComplete = true
                 }
             }
+        } else {
+            textDocumentService.indexingComplete = true
         }
     }
     

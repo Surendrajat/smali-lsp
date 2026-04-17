@@ -347,4 +347,47 @@ class DiagnosticProviderTest {
             assertTrue(diagnostic.source == "smali-lsp", "All diagnostics should be from smali-lsp")
         }
     }
+
+    @Test
+    fun `computeSyntaxDiagnosticsFromParseResult returns only syntax errors`() {
+        // File with both syntax issues AND undefined class references
+        val content = """
+            .class public LTest;
+            .super Lcom/example/NonExistent;
+            
+            .method public foo()V
+                invoke-virtual {v0}, Lcom/example/Missing;->bar()V
+                return-void
+            .end method
+        """.trimIndent()
+
+        val parseResult = parser.parseWithErrors("test.smali", content)
+
+        // Full diagnostics should include semantic warnings (undefined classes)
+        val fullDiagnostics = provider.computeDiagnosticsFromParseResult("test.smali", parseResult)
+
+        // Syntax-only diagnostics should NOT include semantic warnings
+        val syntaxOnly = provider.computeSyntaxDiagnosticsFromParseResult(parseResult)
+
+        // The file is syntactically valid, so no syntax errors
+        assertEquals(0, syntaxOnly.size, "Syntactically valid file should have no syntax-only diagnostics")
+        // But full diagnostics should find the undefined classes
+        assertTrue(fullDiagnostics.size > 0, "Should have semantic warnings for undefined classes")
+        assertTrue(fullDiagnostics.all { it.code?.left == "undefined-class" }, "All should be undefined-class warnings")
+    }
+
+    @Test
+    fun `computeSyntaxDiagnosticsFromParseResult includes syntax errors`() {
+        // Malformed smali: .class without a class name then .super
+        val content = """
+            .class public
+            .super Ljava/lang/Object;
+        """.trimIndent()
+
+        val parseResult = parser.parseWithErrors("test.smali", content)
+        val syntaxOnly = provider.computeSyntaxDiagnosticsFromParseResult(parseResult)
+
+        assertTrue(syntaxOnly.isNotEmpty(), "Should detect syntax errors in malformed file")
+        assertTrue(syntaxOnly.all { it.code?.left == "syntax-error" })
+    }
 }

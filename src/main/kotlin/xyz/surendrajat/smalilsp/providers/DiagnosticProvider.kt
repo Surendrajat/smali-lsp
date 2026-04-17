@@ -60,6 +60,14 @@ class DiagnosticProvider(
     }
 
     /**
+     * Compute only syntax diagnostics from a parse result.
+     * Used during indexing when semantic checks would produce false positives.
+     */
+    fun computeSyntaxDiagnosticsFromParseResult(parseResult: SmaliParser.ParseResult): List<Diagnostic> {
+        return convertSyntaxErrors(parseResult.syntaxErrors)
+    }
+
+    /**
      * Parse file with error recovery enabled.
      * Collects syntax errors but continues parsing.
      */

@@ -50,11 +50,35 @@ class SmaliTextDocumentService(
     private val diagnosticProvider = DiagnosticProvider(parser, index)
     private var client: LanguageClient? = null
 
+    /** Track open file URIs so we can refresh diagnostics after indexing completes. */
+    private val openFiles = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    /** Whether workspace indexing has completed. Semantic diagnostics are suppressed until true. */
+    @Volatile
+    var indexingComplete: Boolean = false
+
     /**
      * Connect to client for sending notifications.
      */
     fun connect(client: LanguageClient) {
         this.client = client
+    }
+
+    /**
+     * Re-publish diagnostics for all currently open files.
+     * Called after workspace indexing completes to clear stale false-positive warnings.
+     */
+    fun refreshDiagnosticsForOpenFiles() {
+        logger.info("Refreshing diagnostics for ${openFiles.size} open file(s)")
+        for (uri in openFiles) {
+            try {
+                val content = index.getDocumentContent(uri) ?: continue
+                val diagnostics = diagnosticProvider.computeDiagnostics(uri, content)
+                publishDiagnostics(uri, diagnostics)
+            } catch (e: Exception) {
+                logger.error("Error refreshing diagnostics for $uri", e)
+            }
+        }
     }
     
     /**
@@ -72,6 +96,7 @@ class SmaliTextDocumentService(
         val content = params.textDocument.text
 
         logger.debug("didOpen: $uri")
+        openFiles.add(uri)
         index.setDocumentContent(uri, content)
 
         try {
@@ -89,8 +114,12 @@ class SmaliTextDocumentService(
                 logger.debug("Already indexed: $uri")
             }
 
-            // Always publish diagnostics on open
-            val diagnostics = diagnosticProvider.computeDiagnosticsFromParseResult(uri, parseResult)
+            // Publish diagnostics - semantic checks only when indexing is complete
+            val diagnostics = if (indexingComplete) {
+                diagnosticProvider.computeDiagnosticsFromParseResult(uri, parseResult)
+            } else {
+                diagnosticProvider.computeSyntaxDiagnosticsFromParseResult(parseResult)
+            }
             publishDiagnostics(uri, diagnostics)
         } catch (e: Exception) {
             logger.error("Error processing didOpen for $uri", e)
@@ -120,7 +149,14 @@ class SmaliTextDocumentService(
                 logger.debug("Re-indexed: $uri")
             } ?: logger.warn("Failed to re-parse: $uri")
 
-            val diagnostics = diagnosticProvider.computeDiagnosticsFromParseResult(uri, parseResult)
+            // Suppress semantic diagnostics during indexing for consistency with didOpen.
+            // Without this, typing one character mid-indexing floods the file with
+            // false "undefined-class" warnings that vanish once indexing completes.
+            val diagnostics = if (indexingComplete) {
+                diagnosticProvider.computeDiagnosticsFromParseResult(uri, parseResult)
+            } else {
+                diagnosticProvider.computeSyntaxDiagnosticsFromParseResult(parseResult)
+            }
             publishDiagnostics(uri, diagnostics)
         } catch (e: Exception) {
             logger.error("Error processing didChange for $uri", e)
@@ -132,6 +168,7 @@ class SmaliTextDocumentService(
      */
     override fun didClose(params: DidCloseTextDocumentParams) {
         val uri = params.textDocument.uri
+        openFiles.remove(uri)
         index.removeDocumentContent(uri)
         logger.debug("didClose: $uri (keeping in index)")
         // Do NOT remove from index - learned from V1 bug
