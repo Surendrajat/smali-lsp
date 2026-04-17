@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.4.1] - 2026-04-17
+
+### Fixed
+
+- **Stale diagnostics after indexing** — "class not found" warnings shown during indexing now get cleared once indexing completes instead of persisting until the user edits the file
+- **Semantic diagnostics suppressed during indexing** — only syntax errors are shown while the workspace index is being built, preventing false-positive "undefined class" warnings
+- **`didChange` during indexing no longer unleashes false-positive warnings** — typing a character while the workspace index is still being built previously flooded the file with "undefined-class" warnings even though `didOpen` had correctly suppressed them; both now behave consistently
+- **Rename name validation** — rejects invalid Smali identifiers (spaces, slashes, parens, names starting with digits); labels validated separately (no hyphens or dollar signs)
+- **Indexing progress notification never ends if scan throws** — `WorkDoneProgressEnd` is now emitted from a `finally` block so the client status bar no longer stays stuck at "Indexing…" when one folder scan fails mid-workspace; the end message also reports final class/method/field counts
+- **Watched files now react to create/delete/change** — external filesystem changes (e.g. apktool regenerating a project, deletion outside the editor) re-parse or evict the affected URI; go-to-definition no longer navigates to ghost URIs, and references to freshly created classes resolve without requiring the user to open each file manually
+
+### Internal
+
+- `WorkspaceIndex.removeFile(uri)` — evicts a class entry and all reverse references (usages, refs, method/field locations) for a URI; paired with `SmaliWorkspaceService.didChangeWatchedFiles` handling
+- Open file tracking in `SmaliTextDocumentService` for post-indexing diagnostic refresh
+- `DiagnosticProvider.computeSyntaxDiagnosticsFromParseResult()` for syntax-only mode
+- `WorkspaceIndex.getDocumentContent()` for full buffer retrieval
+- 18 new tests: 6 service-level diagnostic refresh tests, 7 rename validation tests, 2 syntax-only diagnostic tests, 1 name validation unit test, 2 `WorkspaceIndex.removeFile` tests
+
 ## [1.4.0] - 2026-04-13
 
 ### Added
