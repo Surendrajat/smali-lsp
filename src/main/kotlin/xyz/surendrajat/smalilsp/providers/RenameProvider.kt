@@ -45,6 +45,28 @@ class RenameProvider(
         // Validate new name
         if (newName.isBlank()) return null
 
+        // Validate name characters based on target type
+        when (target) {
+            is RenameTarget.Method -> {
+                if (!isValidSmaliIdentifier(newName)) {
+                    logger.warn("Invalid method name: '$newName'")
+                    return null
+                }
+            }
+            is RenameTarget.Field -> {
+                if (!isValidSmaliIdentifier(newName)) {
+                    logger.warn("Invalid field name: '$newName'")
+                    return null
+                }
+            }
+            is RenameTarget.Label -> {
+                if (!isValidLabelName(newName)) {
+                    logger.warn("Invalid label name: '$newName'")
+                    return null
+                }
+            }
+        }
+
         val edits = mutableMapOf<String, MutableList<TextEdit>>()
 
         when (target) {
@@ -400,5 +422,17 @@ class RenameProvider(
             Position(field.range.start.line, idx),
             Position(field.range.start.line, idx + field.name.length)
         )
+    }
+
+    companion object {
+        // Smali identifiers: letters, digits, underscores, dollar signs, hyphens
+        // Must not start with a digit. Matches DEX spec for SimpleName.
+        private val SMALI_IDENTIFIER_REGEX = Regex("^[a-zA-Z_\$][a-zA-Z0-9_\$-]*$")
+
+        // Labels: alphanumeric, underscores (no colon prefix — that's added at usage site)
+        private val LABEL_NAME_REGEX = Regex("^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+        fun isValidSmaliIdentifier(name: String): Boolean = SMALI_IDENTIFIER_REGEX.matches(name)
+        fun isValidLabelName(name: String): Boolean = LABEL_NAME_REGEX.matches(name)
     }
 }

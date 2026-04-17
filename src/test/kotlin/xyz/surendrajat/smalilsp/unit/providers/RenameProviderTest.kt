@@ -830,5 +830,189 @@ class RenameProviderTest {
             val result = provider.prepareRename("file:///nonexistent.smali", Position(0, 0))
             assertNull(result)
         }
+
+        @Test
+        fun `rename method with invalid characters returns null`() {
+            val uri = "file:///Test.smali"
+            val content = ".class public Lcom/example/Test;\n.super Ljava/lang/Object;\n\n.method public test()V\n    return-void\n.end method"
+            val file = SmaliFile(
+                uri = uri,
+                classDefinition = ClassDefinition(
+                    name = "Lcom/example/Test;",
+                    range = range(0, 0, 5, 11),
+                    modifiers = setOf("public"),
+                    superClass = "Ljava/lang/Object;",
+                    interfaces = emptyList()
+                ),
+                methods = listOf(
+                    MethodDefinition(
+                        name = "test",
+                        descriptor = "()V",
+                        range = range(3, 0, 5, 11),
+                        modifiers = setOf("public"),
+                        parameters = emptyList(),
+                        returnType = "V"
+                    )
+                ),
+                fields = emptyList()
+            )
+            indexFileWithContent(uri, file, content)
+
+            // Names with spaces, slashes, parens, etc. should be rejected
+            assertNull(provider.rename(uri, Position(3, 18), "bad name"), "Spaces not allowed")
+            assertNull(provider.rename(uri, Position(3, 18), "bad/name"), "Slashes not allowed")
+            assertNull(provider.rename(uri, Position(3, 18), "bad(name"), "Parens not allowed")
+            assertNull(provider.rename(uri, Position(3, 18), "123start"), "Cannot start with digit")
+        }
+
+        @Test
+        fun `rename method with valid smali identifiers succeeds`() {
+            val uri = "file:///Test.smali"
+            val content = ".class public Lcom/example/Test;\n.super Ljava/lang/Object;\n\n.method public test()V\n    return-void\n.end method"
+            val file = SmaliFile(
+                uri = uri,
+                classDefinition = ClassDefinition(
+                    name = "Lcom/example/Test;",
+                    range = range(0, 0, 5, 11),
+                    modifiers = setOf("public"),
+                    superClass = "Ljava/lang/Object;",
+                    interfaces = emptyList()
+                ),
+                methods = listOf(
+                    MethodDefinition(
+                        name = "test",
+                        descriptor = "()V",
+                        range = range(3, 0, 5, 11),
+                        modifiers = setOf("public"),
+                        parameters = emptyList(),
+                        returnType = "V"
+                    )
+                ),
+                fields = emptyList()
+            )
+            indexFileWithContent(uri, file, content)
+
+            // Valid Smali names: letters, digits, underscores, dollar signs, hyphens
+            assertNotNull(provider.rename(uri, Position(3, 18), "newName"))
+            assertNotNull(provider.rename(uri, Position(3, 18), "_private"))
+            assertNotNull(provider.rename(uri, Position(3, 18), "\$synthetic"))
+            assertNotNull(provider.rename(uri, Position(3, 18), "name-with-hyphens"))
+        }
+
+        @Test
+        fun `rename field with invalid characters returns null`() {
+            val uri = "file:///Test.smali"
+            val content = ".class public Lcom/example/Test;\n.super Ljava/lang/Object;\n\n.field public myField:I"
+            val file = SmaliFile(
+                uri = uri,
+                classDefinition = ClassDefinition(
+                    name = "Lcom/example/Test;",
+                    range = range(0, 0, 3, 22),
+                    modifiers = setOf("public"),
+                    superClass = "Ljava/lang/Object;",
+                    interfaces = emptyList()
+                ),
+                methods = emptyList(),
+                fields = listOf(
+                    FieldDefinition(
+                        name = "myField",
+                        type = "I",
+                        range = range(3, 0, 3, 22),
+                        modifiers = setOf("public")
+                    )
+                )
+            )
+            indexFileWithContent(uri, file, content)
+
+            assertNull(provider.rename(uri, Position(3, 17), "bad name"), "Spaces not allowed in field name")
+            assertNull(provider.rename(uri, Position(3, 17), "bad;name"), "Semicolons not allowed in field name")
+        }
+
+        @Test
+        fun `rename label with invalid characters returns null`() {
+            val uri = "file:///Test.smali"
+            val content = ".class public Lcom/example/Test;\n.super Ljava/lang/Object;\n\n.method public test()V\n    :myLabel\n    goto :myLabel\n    return-void\n.end method"
+            val file = SmaliFile(
+                uri = uri,
+                classDefinition = ClassDefinition(
+                    name = "Lcom/example/Test;",
+                    range = range(0, 0, 7, 11),
+                    modifiers = setOf("public"),
+                    superClass = "Ljava/lang/Object;",
+                    interfaces = emptyList()
+                ),
+                methods = listOf(
+                    MethodDefinition(
+                        name = "test",
+                        descriptor = "()V",
+                        range = range(3, 0, 7, 11),
+                        modifiers = setOf("public"),
+                        parameters = emptyList(),
+                        returnType = "V",
+                        labels = mapOf("myLabel" to LabelDefinition(
+                            name = "myLabel",
+                            range = range(4, 4, 4, 12)
+                        )),
+                        instructions = listOf(
+                            JumpInstruction(
+                                opcode = "goto",
+                                targetLabel = "myLabel",
+                                range = range(5, 4, 5, 18),
+                                labelRange = range(5, 10, 5, 17)
+                            )
+                        )
+                    )
+                ),
+                fields = emptyList()
+            )
+            indexFileWithContent(uri, file, content)
+
+            assertNull(provider.rename(uri, Position(4, 6), "bad-name"), "Hyphens not allowed in label names")
+            assertNull(provider.rename(uri, Position(4, 6), "bad name"), "Spaces not allowed in label names")
+        }
+    }
+
+    // --- Companion validation tests ---
+
+    @Nested
+    @DisplayName("Name validation")
+    inner class NameValidationTests {
+
+        @Test
+        fun `isValidSmaliIdentifier accepts valid names`() {
+            assertTrue(RenameProvider.isValidSmaliIdentifier("foo"))
+            assertTrue(RenameProvider.isValidSmaliIdentifier("_bar"))
+            assertTrue(RenameProvider.isValidSmaliIdentifier("\$baz"))
+            assertTrue(RenameProvider.isValidSmaliIdentifier("a1"))
+            assertTrue(RenameProvider.isValidSmaliIdentifier("my-method"))
+            assertTrue(RenameProvider.isValidSmaliIdentifier("access\$000"))
+        }
+
+        @Test
+        fun `isValidSmaliIdentifier rejects invalid names`() {
+            assertTrue(!RenameProvider.isValidSmaliIdentifier(""))
+            assertTrue(!RenameProvider.isValidSmaliIdentifier("1start"))
+            assertTrue(!RenameProvider.isValidSmaliIdentifier("has space"))
+            assertTrue(!RenameProvider.isValidSmaliIdentifier("has/slash"))
+            assertTrue(!RenameProvider.isValidSmaliIdentifier("has(paren"))
+            assertTrue(!RenameProvider.isValidSmaliIdentifier("has;semi"))
+        }
+
+        @Test
+        fun `isValidLabelName accepts valid names`() {
+            assertTrue(RenameProvider.isValidLabelName("try_start_0"))
+            assertTrue(RenameProvider.isValidLabelName("catch_0"))
+            assertTrue(RenameProvider.isValidLabelName("_label"))
+            assertTrue(RenameProvider.isValidLabelName("a123"))
+        }
+
+        @Test
+        fun `isValidLabelName rejects invalid names`() {
+            assertTrue(!RenameProvider.isValidLabelName(""))
+            assertTrue(!RenameProvider.isValidLabelName("1start"))
+            assertTrue(!RenameProvider.isValidLabelName("has-hyphen"))
+            assertTrue(!RenameProvider.isValidLabelName("has space"))
+            assertTrue(!RenameProvider.isValidLabelName("has\$dollar"))
+        }
     }
 }
