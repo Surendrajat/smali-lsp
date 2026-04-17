@@ -228,52 +228,56 @@ class SmaliLanguageServer : LanguageServer {
             }
         )))
 
-        for (folder in folders) {
-            try {
-                val uri = folder.uri
-                val dir = File(java.net.URI(uri))
+        try {
+            for (folder in folders) {
+                try {
+                    val uri = folder.uri
+                    val dir = File(java.net.URI(uri))
 
-                if (dir.exists() && dir.isDirectory) {
-                    logger.info("Scanning: ${dir.absolutePath}")
+                    if (dir.exists() && dir.isDirectory) {
+                        logger.info("Scanning: ${dir.absolutePath}")
 
-                    val startTime = System.currentTimeMillis()
-                    var lastReportedPercent = 0
-                    val result = scanner.scanDirectory(dir) { processed, total ->
-                        val percent = if (total > 0) processed * 100 / total else 0
-                        if (percent > lastReportedPercent || processed == total) {
-                            lastReportedPercent = percent
-                            logger.info("Indexing: $processed/$total ($percent%)")
-                            client.notifyProgress(ProgressParams(progressToken, Either.forLeft(
-                                WorkDoneProgressReport().apply {
-                                    message = "$processed / $total files"
-                                    percentage = percent
-                                }
-                            )))
+                        val startTime = System.currentTimeMillis()
+                        var lastReportedPercent = 0
+                        val result = scanner.scanDirectory(dir) { processed, total ->
+                            val percent = if (total > 0) processed * 100 / total else 0
+                            if (percent > lastReportedPercent || processed == total) {
+                                lastReportedPercent = percent
+                                logger.info("Indexing: $processed/$total ($percent%)")
+                                client.notifyProgress(ProgressParams(progressToken, Either.forLeft(
+                                    WorkDoneProgressReport().apply {
+                                        message = "$processed / $total files"
+                                        percentage = percent
+                                    }
+                                )))
+                            }
+                        }
+
+                        val duration = System.currentTimeMillis() - startTime
+                        val stats = index.getStats()
+
+                        logger.info("Indexed ${result.filesSucceeded} files in ${duration}ms")
+                        logger.info("  Rate: ${result.filesPerSecond} files/sec")
+                        logger.info("  Classes: ${stats.classes}, Methods: ${stats.methods}, Fields: ${stats.fields}, Strings: ${stats.strings}")
+
+                        if (result.filesFailed > 0) {
+                            logger.warn("  Failed: ${result.filesFailed} files")
                         }
                     }
-
-                    val duration = System.currentTimeMillis() - startTime
-                    val stats = index.getStats()
-
-                    logger.info("Indexed ${result.filesSucceeded} files in ${duration}ms")
-                    logger.info("  Rate: ${result.filesPerSecond} files/sec")
-                    logger.info("  Classes: ${stats.classes}, Methods: ${stats.methods}, Fields: ${stats.fields}, Strings: ${stats.strings}")
-
-                    if (result.filesFailed > 0) {
-                        logger.warn("  Failed: ${result.filesFailed} files")
-                    }
+                } catch (e: Exception) {
+                    logger.error("Failed to index folder: ${folder.uri}", e)
                 }
-            } catch (e: Exception) {
-                logger.error("Failed to index folder: ${folder.uri}", e)
             }
+        } finally {
+            // Always end progress — a dropped End leaves the client's status bar
+            // stuck on an indefinite "Indexing…" spinner until the server restarts.
+            val stats = index.getStats()
+            client.notifyProgress(ProgressParams(progressToken, Either.forLeft(
+                WorkDoneProgressEnd().apply {
+                    message = "Indexed ${stats.classes} classes, ${stats.methods} methods, ${stats.fields} fields"
+                }
+            )))
         }
-
-        // End progress
-        client.notifyProgress(ProgressParams(progressToken, Either.forLeft(
-            WorkDoneProgressEnd().apply {
-                message = "Indexing complete"
-            }
-        )))
     }
     
     /**
