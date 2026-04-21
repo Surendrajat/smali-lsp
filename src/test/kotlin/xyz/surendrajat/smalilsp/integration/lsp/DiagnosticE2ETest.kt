@@ -105,10 +105,8 @@ class DiagnosticE2ETest {
     
     @Test
     fun `diagnostics on Mastodon files`() {
-        if (mastodonDir == null) {
-            println("⏭️  Mastodon APK not available, skipping")
-            return
-        }
+        org.junit.jupiter.api.Assumptions.assumeTrue(mastodonDir != null, "Mastodon APK not available — skipping diagnostics on Mastodon files")
+        val mastodon = mastodonDir!!
         
         println("=== TEST: diagnostics on Mastodon files ===")
         
@@ -119,14 +117,14 @@ class DiagnosticE2ETest {
         harness = E2ETestHarness(workspace)
         harness.initialize(
             workspaceFolders = listOf(
-                WorkspaceFolder(mastodonDir.toURI().toString(), "mastodon")
+                WorkspaceFolder(mastodon.toURI().toString(), "mastodon")
             )
         )
         
         val server = harness.server
         
         // Sample 10 random files
-        val smaliFiles = mastodonDir.walkTopDown()
+        val smaliFiles = mastodon.walkTopDown()
             .filter { it.extension == "smali" }
             .take(50)
             .toList()

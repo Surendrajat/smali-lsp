@@ -1,5 +1,6 @@
 package xyz.surendrajat.smalilsp.shared
 
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import java.io.File
 
 /**
@@ -53,11 +54,29 @@ object TestUtils {
      * Get Mastodon APK directory (4,415 files), or null if not available.
      */
     fun getMastodonApk(): File? = getApk("mastodon")
+
+    /**
+     * Require Mastodon APK directory, otherwise skip the current test.
+     */
+    fun requireMastodonApk(): File {
+        val apk = getMastodonApk()
+        assumeTrue(apk?.exists() == true, "Mastodon APK not available — skipping")
+        return apk!!
+    }
     
     /**
      * Get ProtonMail APK directory (18,249 files), or null if not available.
      */
     fun getProtonMailApk(): File? = getApk("protonmail")
+
+    /**
+     * Require ProtonMail APK directory, otherwise skip the current test.
+     */
+    fun requireProtonMailApk(): File {
+        val apk = getProtonMailApk()
+        assumeTrue(apk?.exists() == true, "ProtonMail APK not available — skipping")
+        return apk!!
+    }
     
     /**
      * Get all available APK directories for stress testing.

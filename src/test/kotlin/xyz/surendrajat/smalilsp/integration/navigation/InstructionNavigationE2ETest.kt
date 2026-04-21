@@ -110,7 +110,7 @@ class InstructionNavigationE2ETest {
     @Test
     fun `e2e - parse multiple files from same package`() {
         // Given: u00 directory with multiple Smali files
-        val testDir = File(TestUtils.getProtonMailApk() ?: return, "smali_classes2/u00")
+        val testDir = File(TestUtils.requireProtonMailApk(), "smali_classes2/u00")
         Assumptions.assumeTrue(testDir.exists() && testDir.isDirectory, "Test requires protonmail u00 directory")
         
         // When: Parse small files (<10KB) from same package
@@ -141,7 +141,7 @@ class InstructionNavigationE2ETest {
     @Test
     fun `e2e - index multiple files and find cross-references`() {
         // Given: Multiple files from same package
-        val testDir = File(TestUtils.getProtonMailApk() ?: return, "smali_classes2/u00")
+        val testDir = File(TestUtils.requireProtonMailApk(), "smali_classes2/u00")
         Assumptions.assumeTrue(testDir.exists() && testDir.isDirectory, "Test requires protonmail u00 directory")
         
         // When: Parse and index multiple files

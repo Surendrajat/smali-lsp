@@ -1,6 +1,7 @@
 package xyz.surendrajat.smalilsp.stress.parsing
 
 import org.eclipse.lsp4j.Position
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import xyz.surendrajat.smalilsp.shared.TestUtils
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
@@ -39,12 +40,9 @@ class GenericAPKStressTest {
     @Test
     fun `stress test Mastodon APK`() {
         val apkPath = TestUtils.getMastodonApk()
-        if (apkPath == null) {
-            println("Skipping - Mastodon APK not available")
-            return
-        }
+        assumeTrue(apkPath != null, "Mastodon APK not available — skipping")
         
-        val report = runStressTest(apkPath, "Mastodon")
+        val report = runStressTest(apkPath!!, "Mastodon")
         
         // Print detailed report
         printReport(report)
@@ -66,12 +64,9 @@ class GenericAPKStressTest {
     @Test
     fun `stress test ProtonMail APK`() {
         val apkPath = TestUtils.getProtonMailApk()
-        if (apkPath == null) {
-            println("Skipping - ProtonMail APK not available")
-            return
-        }
+        assumeTrue(apkPath != null, "ProtonMail APK not available — skipping")
         
-        val report = runStressTest(apkPath, "ProtonMail")
+        val report = runStressTest(apkPath!!, "ProtonMail")
         
         // Print detailed report
         printReport(report)
@@ -130,7 +125,7 @@ class GenericAPKStressTest {
             parseMetrics = parseMetrics,
             indexMetrics = indexMetrics,
             hoverMetrics = hoverMetrics,
-            navigationMetrics = gotoDefMetrics,
+            navigationMetrics = navigationMetrics,
             findRefsMetrics = findRefsMetrics,
             memoryMetrics = memoryMetrics
         )
@@ -171,7 +166,7 @@ class GenericAPKStressTest {
         
         var parsedCount = 0
         var indexedCount = 0
-        val parseLatencies = mutableListOf<Long>()
+        val parseLatenciesMs = mutableListOf<Long>()
         
         val parseTime = measureTimeMillis {
             apkDir.walkTopDown()
@@ -182,18 +177,19 @@ class GenericAPKStressTest {
                             val content = file.readText()
                             val result = parser.parse(file.toURI().toString(), content)
                             if (result != null) {
-                                parseLatencies.add(System.nanoTime())
                                 index.indexFile(result)
                                 indexedCount++
                             }
                         }
-                        parseLatencies.add(parseFileTime)
+                        parseLatenciesMs.add(parseFileTime)
                         parsedCount++
                     } catch (e: Exception) {
                         // Skip files that fail to parse
                     }
                 }
         }
+
+        val sortedLatenciesMs = parseLatenciesMs.sorted()
         
         val parseMetrics = ParseMetrics(
             totalFiles = parsedCount,
@@ -201,8 +197,8 @@ class GenericAPKStressTest {
             totalTimeMs = parseTime,
             throughput = parsedCount * 1000.0 / parseTime,
             avgLatencyMs = parseTime.toDouble() / parsedCount,
-            p50LatencyMs = parseLatencies.sorted().getOrNull(parsedCount / 2)?.toDouble() ?: 0.0,
-            p95LatencyMs = parseLatencies.sorted().getOrNull((parsedCount * 95) / 100)?.toDouble() ?: 0.0
+            p50LatencyMs = sortedLatenciesMs.getOrNull(parsedCount / 2)?.toDouble() ?: 0.0,
+            p95LatencyMs = sortedLatenciesMs.getOrNull((parsedCount * 95) / 100)?.toDouble() ?: 0.0
         )
         
         val indexMetrics = IndexMetrics(

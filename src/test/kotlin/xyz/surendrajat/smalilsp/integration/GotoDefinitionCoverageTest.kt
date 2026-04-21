@@ -1,6 +1,7 @@
 package xyz.surendrajat.smalilsp.integration
 
 import org.eclipse.lsp4j.Position
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import xyz.surendrajat.smalilsp.shared.PerformanceMetrics
 import xyz.surendrajat.smalilsp.shared.TestUtils
@@ -41,10 +42,7 @@ class GotoDefinitionCoverageTest {
     }
 
     private fun testAPKCoverage(apkName: String, apkPath: File?) {
-        if (apkPath == null) {
-            println("Skipping - $apkName APK not available")
-            return
-        }
+        assumeTrue(apkPath != null, "$apkName APK not available — skipping")
         
         println("\n========================================")
         println("Goto-Definition Coverage: $apkName")
@@ -56,7 +54,7 @@ class GotoDefinitionCoverageTest {
         var fileCount = 0
         
         val indexTime = kotlin.system.measureTimeMillis {
-            apkPath.walkTopDown()
+            apkPath!!.walkTopDown()
                 .filter { it.extension == "smali" }
                 .forEach { file ->
                     try {

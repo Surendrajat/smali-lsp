@@ -1,6 +1,7 @@
 package xyz.surendrajat.smalilsp.regression
 
 import org.eclipse.lsp4j.Position
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import xyz.surendrajat.smalilsp.shared.TestUtils
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
@@ -17,7 +18,7 @@ class SdkClassReferenceTest {
     
     @Test
     fun `find refs on Object init in Mastodon should return reasonable count`() {
-        val apk = TestUtils.getMastodonApk() ?: return
+        val apk = TestUtils.requireMastodonApk()
         testSdkClassReferences(
             apkName = "Mastodon",
             apkDir = apk,
@@ -30,7 +31,7 @@ class SdkClassReferenceTest {
     
     @Test
     fun `find refs on Enum init in Mastodon should return reasonable count`() {
-        val apk = TestUtils.getMastodonApk() ?: return
+        val apk = TestUtils.requireMastodonApk()
         testSdkClassReferences(
             apkName = "Mastodon",
             apkDir = apk,
@@ -43,7 +44,7 @@ class SdkClassReferenceTest {
     
     @Test
     fun `find refs on Object init in ProtonMail should return reasonable count`() {
-        val apk = TestUtils.getProtonMailApk() ?: return
+        val apk = TestUtils.requireProtonMailApk()
         testSdkClassReferences(
             apkName = "ProtonMail",
             apkDir = apk,
@@ -56,7 +57,7 @@ class SdkClassReferenceTest {
     
     @Test
     fun `find refs on Enum init in ProtonMail should return reasonable count`() {
-        val apk = TestUtils.getProtonMailApk() ?: return
+        val apk = TestUtils.requireProtonMailApk()
         testSdkClassReferences(
             apkName = "ProtonMail",
             apkDir = apk,
@@ -69,7 +70,7 @@ class SdkClassReferenceTest {
     
     @Test
     fun `find refs on Object init in Mastodon2 should return reasonable count`() {
-        val apk = TestUtils.getMastodonApk() ?: return
+        val apk = TestUtils.requireMastodonApk()
         testSdkClassReferences(
             apkName = "Mastodon",
             apkDir = apk,
@@ -82,7 +83,7 @@ class SdkClassReferenceTest {
     
     @Test
     fun `find refs on Enum init in Mastodon2 should return reasonable count`() {
-        val apk = TestUtils.getMastodonApk() ?: return
+        val apk = TestUtils.requireMastodonApk()
         testSdkClassReferences(
             apkName = "Mastodon",
             apkDir = apk,
@@ -101,11 +102,6 @@ class SdkClassReferenceTest {
         descriptor: String,
         maxExpected: Int
     ) {
-        if (!apkDir.exists()) {
-            println("SKIPPED: $apkName not found at ${apkDir.absolutePath}")
-            return
-        }
-        
         println("\n===== Testing $apkName: $sdkClassName->$methodName$descriptor =====")
         
         // Index all smali files
@@ -138,20 +134,14 @@ class SdkClassReferenceTest {
                 file.readText().contains("$sdkClassName->$methodName$descriptor")
             }
         
-        if (sampleFile == null) {
-            println("SKIPPED: No file found calling $sdkClassName->$methodName$descriptor")
-            return
-        }
+        assumeTrue(sampleFile != null, "No file found calling $sdkClassName->$methodName$descriptor in $apkName sample")
         
-        println("Sample file: ${sampleFile.name}")
+        println("Sample file: ${sampleFile!!.name}")
         
         // Find the line with the method call
         val lines = sampleFile.readLines()
         val lineIndex = lines.indexOfFirst { it.contains("$sdkClassName->$methodName$descriptor") }
-        if (lineIndex == -1) {
-            println("SKIPPED: Method call not found in ${sampleFile.name}")
-            return
-        }
+        assumeTrue(lineIndex != -1, "Method call not found in ${sampleFile.name}")
         
         val line = lines[lineIndex]
         val methodNamePos = line.indexOf(methodName) + 2 // Click in middle of method name

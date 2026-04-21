@@ -2,6 +2,7 @@ package xyz.surendrajat.smalilsp.regression
 
 import xyz.surendrajat.smalilsp.shared.TestUtils
 
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.io.TempDir
@@ -81,15 +82,8 @@ class ParserFixVerificationTest {
     
     @Test
     fun `stress test real APK - Mastodon if available`() {
-        val mastodonDir = TestUtils.getMastodonApk() ?: run {
-            println("⚠️  Mastodon APK not found - skipping stress test")
-            return
-        }
-
-        if (!mastodonDir.exists()) {
-            println("⚠️  Mastodon APK not found - skipping stress test")
-            return
-        }
+        val mastodonDir = TestUtils.getMastodonApk()
+        assumeTrue(mastodonDir?.exists() == true, "Mastodon APK not available — skipping parser verification stress test")
         
         println("\n=== Stress Testing with Mastodon APK ===")
         
@@ -99,7 +93,7 @@ class ParserFixVerificationTest {
         var arrayInvocationCount = 0
         val errors = mutableListOf<String>()
         
-        mastodonDir.walkTopDown()
+        mastodonDir!!.walkTopDown()
             .filter { it.extension == "smali" }
             .forEach { file ->
                 totalFiles++
@@ -147,19 +141,11 @@ class ParserFixVerificationTest {
     }
     
     @Test
-    fun `stress test real APK - based1111`() {
-        // NOTE: based1111 not available, using Mastodon
-        val basedDir = TestUtils.getMastodonApk() ?: run {
-            println("⚠️  based1111 APK not found - skipping stress test")
-            return
-        }
-
-        if (!basedDir.exists()) {
-            println("⚠️  based1111 APK not found - skipping stress test")
-            return
-        }
+    fun `stress test fallback real APK dataset for array parsing`() {
+        val basedDir = TestUtils.getMastodonApk()
+        assumeTrue(basedDir?.exists() == true, "Mastodon fallback APK not available — skipping parser verification stress test")
         
-        println("\n=== Stress Testing with based1111 APK ===")
+        println("\n=== Stress Testing with fallback real APK dataset ===")
         
         var totalFiles = 0
         var successCount = 0
@@ -176,7 +162,7 @@ class ParserFixVerificationTest {
             "com/google/android/material/drawable/DrawableUtils.smali"
         )
         
-        basedDir.walkTopDown()
+        basedDir!!.walkTopDown()
             .filter { it.extension == "smali" }
             .forEach { file ->
                 totalFiles++

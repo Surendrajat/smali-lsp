@@ -2,6 +2,7 @@ package xyz.surendrajat.smalilsp.integration
 
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.TestInstance
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
@@ -36,22 +37,21 @@ class SearchSymbolsDiagnosticTest {
      */
     @BeforeAll
     fun setup() {
-        val mastodonDir = TestUtils.getMastodonApk() ?: return
-        if (!mastodonDir.exists()) {
-            return
-        }
+        val mastodonDir = TestUtils.getMastodonApk()
+        assumeTrue(mastodonDir?.exists() == true, "Mastodon APK not available — skipping SearchSymbolsDiagnosticTest")
         
         val parser = SmaliParser()
         index = WorkspaceIndex()
         val scanner = WorkspaceScanner(index, parser)
         
         runBlocking {
-            scanner.scanDirectory(mastodonDir)
+            scanner.scanDirectory(mastodonDir!!)
         }
         
         totalClasses = index.getAllClassNames().size
         totalMethods = index.getAllFiles().sumOf { it.methods.size }
         totalFields = index.getAllFiles().sumOf { it.fields.size }
+        assertTrue(totalClasses > 0, "Setup should index at least one class")
         
         provider = WorkspaceSymbolProvider(index)
         
@@ -67,8 +67,6 @@ class SearchSymbolsDiagnosticTest {
      */
     @Test
     fun `all classes should be searchable by their simple name`() {
-        if (totalClasses == 0) return
-        
         // Get all class names
         val allClasses = index.getAllClassNames()
         
@@ -136,8 +134,6 @@ class SearchSymbolsDiagnosticTest {
      */
     @Test
     fun `methods should be searchable by their name`() {
-        if (totalMethods == 0) return
-        
         // Common method names that should be found
         val testMethods = listOf("onCreate", "onResume", "onClick", "run", "toString", "hashCode")
         
@@ -181,8 +177,6 @@ class SearchSymbolsDiagnosticTest {
      */
     @Test
     fun `empty query returns symbols up to limit`() {
-        if (totalClasses == 0) return
-        
         val results = provider.search("")
         
         // Empty query should return MAX_RESULTS symbols (now 500)
@@ -194,8 +188,6 @@ class SearchSymbolsDiagnosticTest {
      */
     @Test
     fun `search returns count and truncated flag correctly`() {
-        if (totalClasses == 0) return
-        
         val results = provider.search("Activity")
         
         // Count actual matches (classes matching by simple name OR package path, plus methods/fields by name)
@@ -230,8 +222,6 @@ class SearchSymbolsDiagnosticTest {
      */
     @Test
     fun `diagnose search accuracy on all method names`() {
-        if (totalMethods == 0) return
-        
         // Collect all unique method names
         val allMethodNames = mutableSetOf<String>()
         index.getAllFiles().forEach { file ->

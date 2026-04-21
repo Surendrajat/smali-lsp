@@ -3,6 +3,7 @@ package xyz.surendrajat.smalilsp.integration.lsp
 import org.eclipse.lsp4j.SymbolKind
 import org.eclipse.lsp4j.WorkspaceFolder
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -34,10 +35,7 @@ class WorkspaceSymbolE2ETest {
     
     @BeforeEach
     fun setup() {
-        if (mastodonPath == null || !mastodonPath.exists()) {
-            println("Skipping setup: Mastodon APK not found")
-            return
-        }
+        assumeTrue(mastodonPath?.exists() == true, "Mastodon APK not available — skipping WorkspaceSymbolE2ETest")
         
         val tempDir = kotlin.io.path.createTempDirectory("smali-ws-test").toFile()
         workspace = TestWorkspace(tempDir)
@@ -46,7 +44,7 @@ class WorkspaceSymbolE2ETest {
         // Initialize with Mastodon workspace folder
         harness.initialize(
             workspaceFolders = listOf(
-                WorkspaceFolder(mastodonPath.toURI().toString(), "mastodon")
+                WorkspaceFolder(mastodonPath!!.toURI().toString(), "mastodon")
             )
         )
         
@@ -67,11 +65,6 @@ class WorkspaceSymbolE2ETest {
     @Test
     @Timeout(10)
     fun `workspace symbol search finds classes`() {
-        if (mastodonPath == null || !mastodonPath.exists()) {
-            println("Skipping test: Mastodon APK not found")
-            return
-        }
-        
         // Search for "Activity" - should find many
         val results = harness.workspaceSymbols("Activity")
         
@@ -92,12 +85,6 @@ class WorkspaceSymbolE2ETest {
     @Test
     @Timeout(10)
     fun `workspace symbol search finds methods`() {
-        if (mastodonPath == null || !mastodonPath.exists()) {
-            println("Skipping test: Mastodon APK not found")
-            return
-        }
-        
-        
         // Search for "onCreate" - common method name
         val results = harness.workspaceSymbols("onCreate")
         
@@ -117,12 +104,6 @@ class WorkspaceSymbolE2ETest {
     @Test
     @Timeout(10)
     fun `workspace symbol search is case insensitive`() {
-        if (mastodonPath == null || !mastodonPath.exists()) {
-            println("Skipping test: Mastodon APK not found")
-            return
-        }
-        
-        
         // Search with lowercase
         val lowerResults = harness.workspaceSymbols("activity")
         
@@ -145,12 +126,6 @@ class WorkspaceSymbolE2ETest {
     @Test
     @Timeout(10)
     fun `workspace symbol search supports fuzzy matching`() {
-        if (mastodonPath == null || !mastodonPath.exists()) {
-            println("Skipping test: Mastodon APK not found")
-            return
-        }
-        
-        
         // Fuzzy search: "MA" could match "MainActivity"
         val results = harness.workspaceSymbols("MA")
         
@@ -165,12 +140,6 @@ class WorkspaceSymbolE2ETest {
     @Test
     @Timeout(10)
     fun `workspace symbol search performs well on large workspace`() {
-        if (mastodonPath == null || !mastodonPath.exists()) {
-            println("Skipping test: Mastodon APK not found")
-            return
-        }
-        
-        
         // Measure search time
         val queries = listOf("Activity", "onCreate", "View", "String", "List")
         
@@ -196,12 +165,6 @@ class WorkspaceSymbolE2ETest {
     @Test
     @Timeout(10)
     fun `workspace symbol with empty query returns symbols`() {
-        if (mastodonPath == null || !mastodonPath.exists()) {
-            println("Skipping test: Mastodon APK not found")
-            return
-        }
-        
-        
         // Empty query
         val results = harness.workspaceSymbols("")
         
@@ -217,12 +180,6 @@ class WorkspaceSymbolE2ETest {
     @Test
     @Timeout(10)
     fun `workspace symbol results are ranked by relevance`() {
-        if (mastodonPath == null || !mastodonPath.exists()) {
-            println("Skipping test: Mastodon APK not found")
-            return
-        }
-        
-        
         // Search for a common term
         val results = harness.workspaceSymbols("View")
         
@@ -240,12 +197,6 @@ class WorkspaceSymbolE2ETest {
     @Test
     @Timeout(10)
     fun `workspace symbol searches across all indexed files`() {
-        if (mastodonPath == null || !mastodonPath.exists()) {
-            println("Skipping test: Mastodon APK not found")
-            return
-        }
-        
-        
         // Search for a common class name
         val results = harness.workspaceSymbols("Fragment")
         
@@ -266,12 +217,6 @@ class WorkspaceSymbolE2ETest {
     @Test
     @Timeout(10)
     fun `workspace symbol with no matches returns empty`() {
-        if (mastodonPath == null || !mastodonPath.exists()) {
-            println("Skipping test: Mastodon APK not found")
-            return
-        }
-        
-        
         // Search for something unlikely to exist
         val results = harness.workspaceSymbols("ThisClassDefinitelyDoesNotExist12345")
         
