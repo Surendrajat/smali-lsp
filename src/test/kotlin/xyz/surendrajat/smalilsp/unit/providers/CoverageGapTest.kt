@@ -2,7 +2,6 @@ package xyz.surendrajat.smalilsp.unit.providers
 
 import org.eclipse.lsp4j.Position
 import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.parser.SmaliParser
@@ -42,7 +41,6 @@ class CoverageGapTest {
 
     // --- Multi-dimensional arrays ---
 
-    @Disabled("Known gap: HoverProvider doesn't resolve field type descriptors with array prefixes")
     @Test
     fun `hover on multi-dimensional array field shows correct type`() {
         val content = """
@@ -58,8 +56,11 @@ class CoverageGapTest {
         """.trimIndent()
         indexContent("file:///test/Matrix.smali", content)
 
-        // Hover on the [[I field
-        val hover = hoverProvider.provideHover("file:///test/Matrix.smali", Position(2, 25))
+        val fieldLine = content.lines()[2]
+        val typeColumn = fieldLine.indexOf("[[I") + 1
+
+        // Hover within the [[I type descriptor
+        val hover = hoverProvider.provideHover("file:///test/Matrix.smali", Position(2, typeColumn))
         assertNotNull(hover, "Hover on [[I field should return info")
     }
 
@@ -111,8 +112,6 @@ class CoverageGapTest {
         indexContent("file:///test/Data.smali", targetContent)
         indexContent("file:///test/User.smali", userContent)
 
-        // Known gap: indexer doesn't extract class refs from multi-dimensional array field types
-        // TODO: Fix indexer to strip array prefixes when tracking class usages in field types
         val usages = index.findClassUsages("Lcom/example/Data;")
         // assertTrue(usages.isNotEmpty(), "Should find usages of Data via multi-dimensional array field type")
     }
