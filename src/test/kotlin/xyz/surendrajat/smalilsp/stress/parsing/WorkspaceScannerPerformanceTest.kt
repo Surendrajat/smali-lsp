@@ -1,10 +1,12 @@
 package xyz.surendrajat.smalilsp.stress.parsing
 
+import xyz.surendrajat.smalilsp.shared.PerformanceTestLock
 import xyz.surendrajat.smalilsp.shared.TestUtils
 
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.condition.EnabledIf
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import java.io.File
@@ -15,7 +17,16 @@ import xyz.surendrajat.smalilsp.indexer.WorkspaceScanner
  * 
  * These tests are conditional - only run if the test data exists.
  */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class WorkspaceScannerPerformanceTest {
+
+    private data class LargeDatasetFixture(
+        val directory: File,
+        val index: WorkspaceIndex,
+        val result: xyz.surendrajat.smalilsp.indexer.ScanResult
+    )
+
+    private var cachedLargeDataset: LargeDatasetFixture? = null
     
     companion object {
         // Path to real smali files from APK (if available)
@@ -30,26 +41,44 @@ class WorkspaceScannerPerformanceTest {
             return dir.exists() && dir.isDirectory
         }
     }
+
+    private fun loadLargeDataset(): LargeDatasetFixture {
+        cachedLargeDataset?.let { return it }
+
+        return PerformanceTestLock.withExclusiveLock("WorkspaceScannerPerformanceTest") {
+            cachedLargeDataset?.let { return@withExclusiveLock it }
+
+            runBlocking {
+                val directory = TestUtils.requireProtonMailApk()
+                val index = WorkspaceIndex()
+                val scanner = WorkspaceScanner(index)
+
+                println("========================================")
+                println("PERFORMANCE TEST: Large Real-World Dataset")
+                println("========================================")
+
+                var progressCount = 0
+                val result = scanner.scanDirectory(directory) { processed, total ->
+                    progressCount++
+                    if (progressCount % 10 == 0) {
+                        val percent = (processed * 100.0) / total
+                        println("Progress: $processed/$total (${String.format("%.1f", percent)}%)")
+                    }
+                }
+
+                LargeDatasetFixture(directory, index, result).also {
+                    cachedLargeDataset = it
+                }
+            }
+        }
+    }
     
     @Test
     @EnabledIf("largeDatasetExists")
     fun `performance test with real APK dataset - ProtonMail 18K files`() = runBlocking {
-        val index = WorkspaceIndex()
-        val scanner = WorkspaceScanner(index)
-        val directory = File(LARGE_DATASET_PATH)
-        
-        println("========================================")
-        println("PERFORMANCE TEST: Large Real-World Dataset")
-        println("========================================")
-        
-        var progressCount = 0
-        val result = scanner.scanDirectory(directory) { processed, total ->
-            progressCount++
-            if (progressCount % 10 == 0) {
-                val percent = (processed * 100.0) / total
-                println("Progress: $processed/$total (${String.format("%.1f", percent)}%)")
-            }
-        }
+        val fixture = loadLargeDataset()
+        val index = fixture.index
+        val result = fixture.result
         
         println("\n========================================")
         println("RESULTS")
@@ -69,50 +98,34 @@ class WorkspaceScannerPerformanceTest {
         println("Fields indexed: ${stats.fields}")
         
         // Verify performance requirement
-        val maxAllowedMs = 5000L
+        val maxAllowedMs = 30_000L
         val withinTarget = result.durationMs <= maxAllowedMs
         
         println("\n========================================")
         println("PERFORMANCE ASSESSMENT")
         println("========================================")
-        println("Target: <${maxAllowedMs}ms (<5 seconds)")
+        println("Target: <${maxAllowedMs}ms (<30 seconds)")
         println("Actual: ${result.durationMs}ms")
         println("Status: ${if (withinTarget) "✅ PASSED" else "⚠️  NEEDS OPTIMIZATION"}")
         
-        if (!withinTarget) {
-            println("\nOptimization suggestions:")
-            println("- Increase coroutine parallelism")
-            println("- Batch index operations")
-            println("- Profile parser performance")
-            println("- Consider incremental parsing")
-        }
-        
         println("========================================\n")
-        
-        // Test passes if we process all files successfully (even if slower than target)
+
         assertTrue(result.filesSucceeded > 17000, "Should successfully process most files (18K+)")
         assertEquals(result.filesProcessed, result.filesSucceeded + result.filesFailed)
-        
-        // Performance threshold: must complete within 60s (conservative for CI)
-        assertTrue(result.durationMs < 60_000,
-            "Scanning should complete within 60s, took ${result.durationMs}ms")
-        // Parse rate should exceed 300 files/sec (conservative; typical is 3000+)
-        assertTrue(result.filesPerSecond > 300,
-            "Parse rate should exceed 300 files/sec, was ${String.format("%.1f", result.filesPerSecond)}")
+
+        assertTrue(result.durationMs < 30_000,
+            "Scanning should complete within 30s, took ${result.durationMs}ms")
         
         // Verify indexing worked
         assertTrue(stats.classes > 17000, "Should index most classes (18K+)")
-        assertTrue(stats.methods > 50000, "Should index many methods (ProtonMail has ~150K+)")
+        assertTrue(stats.methods > 90_000, "Should index the expected ProtonMail method volume")
     }
     
     @Test
     @EnabledIf("largeDatasetExists")
     fun `verify specific classes are indexed correctly`() = runBlocking {
-        val index = WorkspaceIndex()
-        val scanner = WorkspaceScanner(index)
-        val directory = File(LARGE_DATASET_PATH)
-        
-        scanner.scanDirectory(directory)
+        val fixture = loadLargeDataset()
+        val index = fixture.index
         
         // Test a few known ProtonMail classes (real classes from APK)
         val testClasses = listOf(
@@ -188,9 +201,9 @@ class WorkspaceScannerPerformanceTest {
             assertEquals(fileCount, stats.classes)
             assertEquals(fileCount * 2, stats.fields) // 2 fields per class
             assertEquals(fileCount * 3, stats.methods) // 3 methods per class
-            
-            // Should be fast (15s is conservative for CI runners)
-            assertTrue(result.durationMs < 15_000, "500 files should complete in <15 seconds")
+
+            assertTrue(result.durationMs < 1_000, "500 files should complete in <1 second")
+            assertTrue(result.filesPerSecond > 1_000, "Synthetic scan should exceed 1000 files/sec")
             
         } finally {
             tempDir.deleteRecursively()

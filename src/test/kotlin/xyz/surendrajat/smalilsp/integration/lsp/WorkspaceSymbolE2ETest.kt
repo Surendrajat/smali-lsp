@@ -2,11 +2,12 @@ package xyz.surendrajat.smalilsp.integration.lsp
 
 import org.eclipse.lsp4j.SymbolKind
 import org.eclipse.lsp4j.WorkspaceFolder
-import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.Timeout
 import java.io.File
 
@@ -27,32 +28,31 @@ import xyz.surendrajat.smalilsp.shared.TestUtils
  * - Empty queries
  * - Multiple file search
  */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class WorkspaceSymbolE2ETest {
 
     private val mastodonPath = TestUtils.getMastodonApk()
     private lateinit var harness: E2ETestHarness
     private lateinit var workspace: TestWorkspace
     
-    @BeforeEach
+    @BeforeAll
     fun setup() {
         assumeTrue(mastodonPath?.exists() == true, "Mastodon APK not available — skipping WorkspaceSymbolE2ETest")
-        
-        val tempDir = kotlin.io.path.createTempDirectory("smali-ws-test").toFile()
-        workspace = TestWorkspace(tempDir)
+
+        workspace = TestWorkspace(mastodonPath!!)
         harness = E2ETestHarness(workspace)
-        
+
         // Initialize with Mastodon workspace folder
         harness.initialize(
             workspaceFolders = listOf(
-                WorkspaceFolder(mastodonPath!!.toURI().toString(), "mastodon")
+                WorkspaceFolder(workspace.baseDir.toURI().toString(), "mastodon")
             )
         )
-        
-        // Wait for indexing to complete
-        Thread.sleep(5000)
+
+        harness.waitForIndexing(5)
     }
-    
-    @AfterEach
+
+    @AfterAll
     fun teardown() {
         if (mastodonPath != null && mastodonPath.exists() && ::harness.isInitialized) {
             harness.cleanup()
@@ -140,23 +140,25 @@ class WorkspaceSymbolE2ETest {
     @Test
     @Timeout(10)
     fun `workspace symbol search performs well on large workspace`() {
-        // Measure search time
         val queries = listOf("Activity", "onCreate", "View", "String", "List")
-        
+        val elapsedTimes = mutableListOf<Long>()
+
         queries.forEach { query ->
             val start = System.currentTimeMillis()
             val results = harness.workspaceSymbols(query)
             val elapsed = System.currentTimeMillis() - start
-            
+            elapsedTimes.add(elapsed)
+
             println("Query '$query': ${results.size} results in ${elapsed}ms")
-            
-            // Should complete in < 500ms
-            assertTrue(elapsed < 500, "Search should be < 500ms, was ${elapsed}ms")
-            
-            // Should limit to 500 results
+
             assertTrue(results.size <= 500, "Should limit to 500 results")
         }
-        
+
+        val maxTime = elapsedTimes.maxOrNull() ?: 0L
+        val avgTime = elapsedTimes.average()
+
+        assertTrue(avgTime < 125.0, "Average search time should be < 125ms, was ${"%.1f".format(avgTime)}ms")
+        assertTrue(maxTime < 250, "Slowest workspace symbol query should be < 250ms, was ${maxTime}ms")
     }
     
     /**

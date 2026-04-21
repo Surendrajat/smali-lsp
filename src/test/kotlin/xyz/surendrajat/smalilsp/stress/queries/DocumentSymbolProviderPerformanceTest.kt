@@ -1,8 +1,10 @@
 package xyz.surendrajat.smalilsp.stress.queries
 
 import org.junit.jupiter.api.Test
+import xyz.surendrajat.smalilsp.shared.PerformanceMetrics
 import xyz.surendrajat.smalilsp.shared.TempTestWorkspace
 import kotlin.test.assertTrue
+import kotlin.system.measureNanoTime
 
 import xyz.surendrajat.smalilsp.providers.DocumentSymbolProvider
 import xyz.surendrajat.smalilsp.shared.TestWorkspace
@@ -199,23 +201,32 @@ class DocumentSymbolProviderPerformanceTest {
         
         val file = workspace.parseFile("test/Repeated.smali")
         val provider = DocumentSymbolProvider()
-        
-        // Measure 1000 calls to ensure no memory leaks or performance degradation
-        val times = mutableListOf<Long>()
-        repeat(1000) {
-            val start = System.nanoTime()
+        val metrics = PerformanceMetrics("Repeated document symbol lookups")
+
+        // Warm the JIT before collecting latency samples.
+        repeat(100) {
             provider.provideDocumentSymbols(file)
-            val elapsed = (System.nanoTime() - start) / 1_000_000
-            times.add(elapsed)
         }
         
-        val avgTime = times.average()
-        val maxTime = times.maxOrNull() ?: 0L
+        // Measure 1000 calls and use percentiles to avoid failing on a single GC/JIT outlier.
+        repeat(1000) {
+            val elapsed = measureNanoTime {
+                provider.provideDocumentSymbols(file)
+            }
+            metrics.record(elapsed)
+        }
         
-        println("1000 repeated calls: avg=${avgTime.toLong()}ms, max=${maxTime}ms")
-        assertTrue(avgTime < 5, "Average should stay under 5ms, was ${avgTime.toLong()}ms")
-        // Note: Increased from 20ms to 30ms to account for GC/system variance in 1000 iterations
-        assertTrue(maxTime < 30, "Max time should stay under 30ms (no degradation), was ${maxTime}ms")
+        val avgTime = metrics.getAvgMs()
+        val p99Time = metrics.getP99Ms()
+        val maxTime = metrics.getMaxMs()
+        
+        println(
+            "1000 repeated calls: avg=${"%.3f".format(avgTime)}ms, " +
+                "p99=${"%.3f".format(p99Time)}ms, max=${maxTime}ms"
+        )
+        assertTrue(avgTime < 1.0, "Average should stay under 1ms, was ${"%.3f".format(avgTime)}ms")
+        assertTrue(p99Time < 5.0, "P99 should stay under 5ms, was ${"%.3f".format(p99Time)}ms")
+        assertTrue(maxTime < 50, "Single-call outliers should stay under 50ms, was ${maxTime}ms")
         
         workspace.cleanup()
     }
