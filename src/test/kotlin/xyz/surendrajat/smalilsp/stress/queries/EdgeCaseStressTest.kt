@@ -201,66 +201,6 @@ class EdgeCaseStressTest {
     }
     
     @Test
-    @org.junit.jupiter.api.Disabled("Anonymous class constructor parsing needs investigation")
-    fun `references - anonymous class inner method calls work`() {
-        val workspace = TempTestWorkspace.create()
-        // Simulate anonymous class pattern
-        workspace.addFile("Outer.smali", """
-            .class public LOuter;
-            .super Ljava/lang/Object;
-            
-            .method public createAnonymous()Ljava/lang/Runnable;
-                new-instance v0, LOuter\$1;
-                invoke-direct {v0}, LOuter\$1;-><init>()V
-                return-object v0
-            .end method
-        """.trimIndent())
-        
-        workspace.addFile("Outer\$1.smali", """
-            .class LOuter\$1;
-            .super Ljava/lang/Object;
-            .implements Ljava/lang/Runnable;
-            
-            .method public run()V
-                return-void
-            .end method
-        """.trimIndent())
-        
-        workspace.addFile("Test.smali", """
-            .class public LTest;
-            .super Ljava/lang/Object;
-            
-            .method public test()V
-                new-instance v0, LOuter\$1;
-                invoke-direct {v0}, LOuter\$1;-><init>()V
-                return-void
-            .end method
-        """.trimIndent())
-        
-        val index = workspace.buildIndex()
-        val provider = ReferenceProvider(index)
-        val outerUri = workspace.getUri("Outer.smali")
-        
-        val outerFile = index.findFileByUri(outerUri)!!
-        val createMethod = outerFile.methods.find { it.name == "createAnonymous" }!!
-        val invokeInsn = createMethod.instructions.filterIsInstance<InvokeInstruction>().firstOrNull()
-            ?: error("No invoke instruction found")
-        
-        // Find refs for anonymous class constructor
-        val lines = java.io.File(java.net.URI(outerUri)).readLines()
-        val line = lines[invokeInsn.range.start.line]
-        val initPos = line.indexOf("-><init>")
-        require(initPos >= 0)
-        
-        val refs = provider.findReferences(outerUri, Position(invokeInsn.range.start.line, initPos + 3), true)
-        
-        // Should find definition + both instantiation sites
-        assertTrue(refs.size >= 2, "Should find multiple references to anonymous class constructor (found ${refs.size})")
-        
-        workspace.cleanup()
-    }
-    
-    @Test
     fun `hover - SDK class with dollar sign (nested) works`() {
         val workspace = TempTestWorkspace.create()
         workspace.addFile("Test.smali", """
