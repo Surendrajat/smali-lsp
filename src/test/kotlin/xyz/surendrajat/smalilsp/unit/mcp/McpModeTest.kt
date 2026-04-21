@@ -5,18 +5,16 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Assumptions.assumeTrue
 import java.io.*
 import java.nio.file.Files
 import java.util.Properties
-import java.util.jar.JarFile
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
 /**
  * Integration tests for McpMode (MCP server over JSON-RPC 2.0 stdio).
  *
- * Spawns the JAR with `mcp` subcommand and tests the full MCP lifecycle:
+ * Spawns the main entrypoint with `mcp` subcommand and tests the full MCP lifecycle:
  * - Initialization handshake (initialize -> initialized)
  * - Tool discovery (tools/list)
  * - Tool execution (tools/call) for all 8 tools
@@ -170,7 +168,7 @@ class McpModeTest {
     @Test
     fun `test MCP initialization handshake`() {
         val process = startMcpProcess()
-        val expectedVersion = latestBuiltJarVersion()
+        val expectedVersion = runtimeVersion()
 
         try {
             val stdin = BufferedWriter(OutputStreamWriter(process.outputStream))
@@ -832,30 +830,23 @@ class McpModeTest {
     // --- Helpers ---
 
     private fun startMcpProcess(): Process {
-        val jarFile = File("build/libs").listFiles()
-            ?.filter { it.name.startsWith("smali-lsp") && it.name.endsWith(".jar") }
-            ?.maxByOrNull { it.lastModified() }
-        assumeTrue(jarFile != null, "LSP jar not found — run './gradlew shadowJar' first, skipping MCP tests")
+        val javaBinary = File(System.getProperty("java.home"), "bin/java").absolutePath
+        val classpath = System.getProperty("java.class.path")
+        assertTrue(classpath.isNotBlank(), "Test runtime classpath should not be blank")
 
         return ProcessBuilder(
-            "java", "-jar", jarFile!!.absolutePath, "mcp"
-        ).start()
+            javaBinary, "-cp", classpath, "xyz.surendrajat.smalilsp.MainKt", "mcp"
+        ).directory(File(System.getProperty("user.dir")))
+            .start()
     }
 
-    private fun latestBuiltJarVersion(): String {
-        val jarFile = File("build/libs").listFiles()
-            ?.filter { it.name.startsWith("smali-lsp") && it.name.endsWith(".jar") }
-            ?.maxByOrNull { it.lastModified() }
-        assumeTrue(jarFile != null, "LSP jar not found — run './gradlew shadowJar' first, skipping MCP tests")
+    private fun runtimeVersion(): String {
+        val stream = McpModeTest::class.java.getResourceAsStream("/version.properties")
+        assertNotNull(stream, "version.properties must be present on the test runtime classpath")
 
-        JarFile(jarFile!!).use { jar ->
-            val entry = jar.getJarEntry("version.properties")
-            assertNotNull(entry, "Built jar must contain version.properties")
-
-            val props = Properties()
-            jar.getInputStream(entry).use { props.load(it) }
-            return props.getProperty("version", "unknown")
-        }
+        val props = Properties()
+        stream!!.use { props.load(it) }
+        return props.getProperty("version", "unknown")
     }
 
     private fun drainStderr(process: Process) {
