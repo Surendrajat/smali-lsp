@@ -211,10 +211,9 @@ class SearchSymbolsDiagnosticTest {
         val actualFieldMatches = index.getAllFiles().sumOf { file ->
             file.fields.count { it.name.contains("Activity", ignoreCase = true) }
         }
-        val actualStringMatches = index.searchStrings("Activity").size
-        val actualMatches = actualClassMatches + actualMethodMatches + actualFieldMatches + actualStringMatches
+        val actualMatches = actualClassMatches + actualMethodMatches + actualFieldMatches
         
-        println("Activity search: returned ${results.size}, actual $actualMatches (classes: $actualClassMatches, methods: $actualMethodMatches, fields: $actualFieldMatches, strings: $actualStringMatches)")
+        println("Activity search: returned ${results.size}, actual $actualMatches (classes: $actualClassMatches, methods: $actualMethodMatches, fields: $actualFieldMatches)")
         
         if (actualMatches > 500) {
             assertEquals(500, results.size, "Should truncate to 500 when more matches exist")

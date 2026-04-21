@@ -166,6 +166,62 @@ class StringSearchTest {
     }
 
     @Test
+    fun `stats stay correct after reindex without building string locations`() {
+        val uri = "file:///test/Reindex.smali"
+        val original = """
+            .class public Lcom/example/Reindex;
+            .super Ljava/lang/Object;
+            .method public value()V
+                .registers 2
+                const-string v0, "one"
+                const-string v1, "two"
+                return-void
+            .end method
+        """.trimIndent()
+        val updated = """
+            .class public Lcom/example/Reindex;
+            .super Ljava/lang/Object;
+            .method public value()V
+                .registers 2
+                const-string v0, "two"
+                const-string v1, "three"
+                return-void
+            .end method
+        """.trimIndent()
+
+        indexContent(uri, original)
+        assertEquals(2, index.getStats().strings)
+
+        indexContent(uri, updated)
+
+        val stats = index.getStats()
+        assertEquals(2, stats.strings, "Reindex should remove stale strings and add new ones")
+        assertEquals(setOf("two", "three"), index.searchStrings("").map { it.value }.toSet())
+    }
+
+    @Test
+    fun `removeFile updates string stats`() {
+        val uri = "file:///test/DeleteMe.smali"
+        val content = """
+            .class public Lcom/example/DeleteMe;
+            .super Ljava/lang/Object;
+            .method public value()V
+                .registers 2
+                const-string v0, "delete-a"
+                const-string v1, "delete-b"
+                return-void
+            .end method
+        """.trimIndent()
+
+        indexContent(uri, content)
+        assertEquals(2, index.getStats().strings)
+
+        assertTrue(index.removeFile(uri))
+        assertEquals(0, index.getStats().strings)
+        assertTrue(index.searchStrings("delete").isEmpty())
+    }
+
+    @Test
     fun `multiple files string search`() {
         val content1 = """
             .class public Lcom/a/A;

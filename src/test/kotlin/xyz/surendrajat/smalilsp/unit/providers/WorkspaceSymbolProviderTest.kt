@@ -159,6 +159,48 @@ class WorkspaceSymbolProviderTest {
         // Should find buttonSubmit field
         assertTrue(results.any { it.kind == SymbolKind.Field && it.name.contains("buttonSubmit") })
     }
+
+    /**
+     * Test workspace symbol search does not return string literals.
+     * String literals belong to the dedicated search_strings path, not workspace/symbol.
+     */
+    @Test
+    fun `string literals are not returned as workspace symbols`() {
+        val index = WorkspaceIndex()
+        val file = SmaliFile(
+            uri = "file:///test/Strings.smali",
+            classDefinition = ClassDefinition(
+                name = "Lcom/example/Strings;",
+                range = range(0, 0, 8, 0),
+                modifiers = setOf("public"),
+                superClass = "Ljava/lang/Object;",
+                interfaces = emptyList()
+            ),
+            methods = listOf(
+                MethodDefinition(
+                    name = "log",
+                    descriptor = "()V",
+                    range = range(3, 0, 7, 0),
+                    modifiers = setOf("public"),
+                    parameters = emptyList(),
+                    returnType = "V",
+                    instructions = listOf(
+                        ConstStringInstruction(
+                            value = "critical-string-marker",
+                            range = range(5, 4, 5, 40)
+                        )
+                    )
+                )
+            ),
+            fields = emptyList()
+        )
+        index.indexFile(file)
+
+        val provider = WorkspaceSymbolProvider(index)
+        val results = provider.search("critical-string-marker")
+
+        assertTrue(results.isEmpty(), "workspace/symbol should not return string literals")
+    }
     
     /**
      * Test result ranking: exact > prefix > contains > fuzzy.

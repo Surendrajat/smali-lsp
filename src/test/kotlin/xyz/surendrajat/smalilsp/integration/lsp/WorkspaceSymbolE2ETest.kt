@@ -230,7 +230,7 @@ class WorkspaceSymbolE2ETest {
         
         // Top results should contain "View" prominently
         val topResults = results.take(10)
-        assertTrue(topResults.any { it.name.contains("View") })
+        assertTrue(topResults.any { it.name.contains("View", ignoreCase = true) })
         
     }
     

@@ -5,6 +5,7 @@ import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.Position
 import org.eclipse.lsp4j.Range
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import java.io.File
 import java.net.URI
 
@@ -67,6 +68,13 @@ class WorkspaceIndex {
 
     // Simple name → Set<full class names> (reverse index for O(1) findClassesBySimpleName)
     private val simpleNameIndex = ConcurrentHashMap<String, MutableSet<String>>()
+
+    // String literal value → total occurrence count across workspace.
+    // Maintained incrementally so getStats() does not need to materialize the lazy string index.
+    private val stringValueCounts = ConcurrentHashMap<String, Int>()
+
+    private val methodCount = AtomicInteger(0)
+    private val fieldCount = AtomicInteger(0)
     
     /**
      * Index a smali file. Thread-safe.
@@ -176,6 +184,10 @@ class WorkspaceIndex {
             }
         }
 
+        methodCount.addAndGet(file.methods.size)
+        fieldCount.addAndGet(file.fields.size)
+        updateStringValueCounts(file, delta = 1)
+
         // Mark string index as stale (rebuilt lazily on next search)
         stringIndexDirty = true
     }
@@ -208,6 +220,10 @@ class WorkspaceIndex {
     private fun removeOldEntries(oldFile: SmaliFile) {
         val className = oldFile.classDefinition.name
         val uri = oldFile.uri
+
+        methodCount.addAndGet(-oldFile.methods.size)
+        fieldCount.addAndGet(-oldFile.fields.size)
+        updateStringValueCounts(oldFile, delta = -1)
 
         // Remove simple name index entry
         extractSimpleNameFromClassName(className)?.let { simpleName ->
@@ -284,6 +300,19 @@ class WorkspaceIndex {
     private fun extractClassFromType(type: String): String? {
         val base = type.trimStart('[')
         return if (base.startsWith('L') && base.endsWith(';')) base else null
+    }
+
+    private fun updateStringValueCounts(file: SmaliFile, delta: Int) {
+        file.methods.forEach { method ->
+            method.instructions.forEach { instr ->
+                if (instr is ConstStringInstruction) {
+                    stringValueCounts.compute(instr.value) { _, existing ->
+                        val next = (existing ?: 0) + delta
+                        if (next > 0) next else null
+                    }
+                }
+            }
+        }
     }
     
     /**
@@ -429,12 +458,20 @@ class WorkspaceIndex {
     fun searchStrings(query: String, maxResults: Int = 500): List<StringSearchResult> {
         ensureStringIndex()
         val normalizedQuery = query.lowercase()
-        return stringIndex.entries
-            .filter { (value, _) -> value.lowercase().contains(normalizedQuery) }
-            .flatMap { (value, locations) ->
-                locations.map { location -> StringSearchResult(value, location) }
+        val results = ArrayList<StringSearchResult>(minOf(maxResults, 64))
+
+        for ((value, locations) in stringIndex) {
+            if (normalizedQuery.isNotEmpty() && !value.lowercase().contains(normalizedQuery)) continue
+
+            for (location in locations) {
+                results.add(StringSearchResult(value, location))
+                if (results.size >= maxResults) {
+                    return results
+                }
             }
-            .take(maxResults)
+        }
+
+        return results
     }
 
     /**
@@ -527,12 +564,11 @@ class WorkspaceIndex {
      * Get index statistics.
      */
     fun getStats(): IndexStats {
-        ensureStringIndex()
         return IndexStats(
             classes = files.size,
-            methods = methodLocations.values.sumOf { it.size },
-            fields = fieldLocations.size,
-            strings = stringIndex.size
+            methods = methodCount.get(),
+            fields = fieldCount.get(),
+            strings = stringValueCounts.size
         )
     }
     
@@ -603,6 +639,14 @@ class WorkspaceIndex {
      */
     fun getAllFiles(): List<SmaliFile> {
         return files.values.toList()
+    }
+
+    /**
+     * Get a concurrent view of indexed files without copying.
+     * Safe for iteration; view may reflect concurrent updates.
+     */
+    fun getFilesView(): Collection<SmaliFile> {
+        return files.values
     }
     
     /**
@@ -691,11 +735,14 @@ class WorkspaceIndex {
         classUsages.clear()
         stringIndex.clear()
         stringIndexDirty = true
+        methodCount.set(0)
+        fieldCount.set(0)
         subclassIndex.clear()
         implementorsIndex.clear()
         methodUsages.clear()
         fieldUsages.clear()
         classRefLocations.clear()
+        stringValueCounts.clear()
         documentContents.clear()
         documentLines.clear()
         simpleNameIndex.clear()

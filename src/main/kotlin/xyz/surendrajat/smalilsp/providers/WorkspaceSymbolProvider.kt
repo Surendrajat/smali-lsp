@@ -3,6 +3,7 @@ package xyz.surendrajat.smalilsp.providers
 import org.eclipse.lsp4j.Location
 import org.eclipse.lsp4j.SymbolInformation
 import org.eclipse.lsp4j.SymbolKind
+import java.util.PriorityQueue
 import xyz.surendrajat.smalilsp.core.SmaliFile
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.util.ClassUtils
@@ -42,14 +43,13 @@ class WorkspaceSymbolProvider(
      */
     fun search(query: String): List<SymbolInformation> {
         val normalizedQuery = query.lowercase().trim()
-        
-        // Get all indexed files
-        val allFiles = index.getAllFiles()
-        
-        // Collect all symbols with their match scores
-        val matches = mutableListOf<Pair<SymbolInformation, Int>>()
-        
-        allFiles.forEach { file ->
+        if (normalizedQuery.isEmpty()) {
+            return collectFirstSymbols()
+        }
+
+        val matches = TopSymbolMatches(MAX_RESULTS)
+
+        index.getFilesView().forEach { file ->
             // Add class symbol - match on simple name OR full package path.
             // e.g. query "billingclient" should match "Lcom/android/billingclient/BillingClient;"
             val simpleName = extractSimpleName(file.classDefinition.name)
@@ -57,8 +57,14 @@ class WorkspaceSymbolProvider(
             val classMatch = matchSymbol(simpleName, normalizedQuery)
                 ?: if (fullPath.contains(normalizedQuery)) 50 else null
             if (classMatch != null) {
-                matches.add(
-                    createClassSymbol(file) to classMatch
+                matches.offer(
+                    ScoredSymbol(
+                        name = file.classDefinition.name,
+                        kind = SymbolKind.Class,
+                        location = Location(file.uri, file.classDefinition.range),
+                        containerName = null,
+                        score = classMatch
+                    )
                 )
             }
             
@@ -68,13 +74,14 @@ class WorkspaceSymbolProvider(
                 if (methodMatch != null) {
                     // Display name includes class for context
                     val displayName = "${file.classDefinition.name}.${method.name}"
-                    matches.add(
-                        SymbolInformation(
-                            displayName,
-                            SymbolKind.Method,
-                            Location(file.uri, method.range),
-                            file.classDefinition.name
-                        ) to methodMatch
+                    matches.offer(
+                        ScoredSymbol(
+                            name = displayName,
+                            kind = SymbolKind.Method,
+                            location = Location(file.uri, method.range),
+                            containerName = file.classDefinition.name,
+                            score = methodMatch
+                        )
                     )
                 }
             }
@@ -85,41 +92,55 @@ class WorkspaceSymbolProvider(
                 if (fieldMatch != null) {
                     // Display name includes class for context
                     val displayName = "${file.classDefinition.name}.${field.name}"
-                    matches.add(
-                        SymbolInformation(
-                            displayName,
-                            SymbolKind.Field,
-                            Location(file.uri, field.range),
-                            file.classDefinition.name
-                        ) to fieldMatch
+                    matches.offer(
+                        ScoredSymbol(
+                            name = displayName,
+                            kind = SymbolKind.Field,
+                            location = Location(file.uri, field.range),
+                            containerName = file.classDefinition.name,
+                            score = fieldMatch
+                        )
                     )
                 }
             }
         }
 
-        // Search string literals (only when query is 2+ chars to avoid noise)
-        if (normalizedQuery.length >= 2) {
-            val stringResults = index.searchStrings(normalizedQuery, 100)
-            stringResults.forEach { result ->
-                val truncated = if (result.value.length > 60) result.value.take(60) + "..." else result.value
-                val className = index.findClassNameByUri(result.location.uri) ?: "unknown"
-                matches.add(
+        return matches.toSortedSymbolInformation()
+    }
+
+    private fun collectFirstSymbols(): List<SymbolInformation> {
+        val results = ArrayList<SymbolInformation>(MAX_RESULTS)
+
+        for (file in index.getFilesView()) {
+            if (results.size >= MAX_RESULTS) break
+            results.add(createClassSymbol(file))
+
+            for (method in file.methods) {
+                if (results.size >= MAX_RESULTS) break
+                results.add(
                     SymbolInformation(
-                        "\"$truncated\"",
-                        SymbolKind.String,
-                        result.location,
-                        className
-                    ) to 50  // Lower than class/method matches
+                        "${file.classDefinition.name}.${method.name}",
+                        SymbolKind.Method,
+                        Location(file.uri, method.range),
+                        file.classDefinition.name
+                    )
+                )
+            }
+
+            for (field in file.fields) {
+                if (results.size >= MAX_RESULTS) break
+                results.add(
+                    SymbolInformation(
+                        "${file.classDefinition.name}.${field.name}",
+                        SymbolKind.Field,
+                        Location(file.uri, field.range),
+                        file.classDefinition.name
+                    )
                 )
             }
         }
-        
-        // Sort by match score (higher is better), then by name
-        return matches
-            .sortedWith(compareByDescending<Pair<SymbolInformation, Int>> { it.second }
-                .thenBy { it.first.name })
-            .take(MAX_RESULTS)
-            .map { it.first }
+
+        return results
     }
     
     /**
@@ -191,6 +212,72 @@ class WorkspaceSymbolProvider(
             SymbolKind.Class,
             Location(file.uri, file.classDefinition.range)
         )
+    }
+
+    private data class ScoredSymbol(
+        val name: String,
+        val kind: SymbolKind,
+        val location: Location,
+        val containerName: String?,
+        val score: Int
+    )
+
+    private class TopSymbolMatches(limit: Int) {
+        private val worstFirst = Comparator<ScoredSymbol> { left, right ->
+            val scoreCompare = left.score.compareTo(right.score)
+            if (scoreCompare != 0) {
+                scoreCompare
+            } else {
+                right.name.compareTo(left.name)
+            }
+        }
+
+        private val maxSize = limit
+        private var buffered = ArrayList<ScoredSymbol>(minOf(limit, 64))
+        private var heap: PriorityQueue<ScoredSymbol>? = null
+
+        fun offer(symbol: ScoredSymbol) {
+            val activeHeap = heap
+            if (activeHeap == null) {
+                buffered.add(symbol)
+                if (buffered.size > maxSize) {
+                    val newHeap = PriorityQueue<ScoredSymbol>(maxSize, worstFirst)
+                    buffered.forEach { offerIntoHeap(newHeap, it) }
+                    buffered = ArrayList(0)
+                    heap = newHeap
+                }
+                return
+            }
+
+            offerIntoHeap(activeHeap, symbol)
+        }
+
+        fun toSortedSymbolInformation(): List<SymbolInformation> {
+            val source = heap?.toList() ?: buffered
+            return source
+                .sortedWith(compareByDescending<ScoredSymbol> { it.score }.thenBy { it.name })
+                .map { symbol ->
+                    SymbolInformation(
+                        symbol.name,
+                        symbol.kind,
+                        symbol.location,
+                        symbol.containerName
+                    )
+                }
+        }
+
+        private fun offerIntoHeap(target: PriorityQueue<ScoredSymbol>, symbol: ScoredSymbol) {
+            if (target.size < maxSize) {
+                target.add(symbol)
+                return
+            }
+
+            val worst = target.peek() ?: return
+            if (worstFirst.compare(symbol, worst) > 0) {
+                target.poll()
+                target.add(symbol)
+            }
+        }
     }
     
     /**
