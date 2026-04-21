@@ -1,12 +1,22 @@
 import java.time.Instant
 
+buildscript {
+    dependencies {
+        constraints {
+            classpath(libs.commons.io)
+            classpath(libs.plexus.utils)
+            classpath(libs.log4j.api)
+            classpath(libs.log4j.core)
+        }
+    }
+}
+
 plugins {
-    kotlin("jvm") version "2.3.20"
-    kotlin("plugin.serialization") version "2.3.20"
-    id("com.github.johnrengelman.shadow") version "8.1.1"
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.shadow)
     id("antlr")
     id("jacoco")
-    id("me.champeau.jmh") version "0.7.2"
+    alias(libs.plugins.jmh)
 }
 
 group = "xyz.surendrajat"
@@ -18,34 +28,32 @@ repositories {
 
 dependencies {
     // ANTLR for parsing
-    antlr("org.antlr:antlr4:4.13.1")
-    implementation("org.antlr:antlr4-runtime:4.13.1")
+    antlr(libs.antlr.tool)
+    implementation(libs.antlr.runtime)
     
     // LSP4J for language server
-    implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:0.21.1")
+    implementation(libs.lsp4j)
     
     // Kotlin coroutines for concurrency
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    implementation(libs.kotlinx.coroutines.core)
     
     // JSON for CLI mode
-    implementation("com.google.code.gson:gson:2.10.1")
+    implementation(libs.gson)
 
     // MCP (Model Context Protocol) server
-    implementation("io.modelcontextprotocol:kotlin-sdk-server:0.10.0")
+    implementation(libs.mcp.kotlin.sdk.server)
     
     // Logging
-    implementation("org.slf4j:slf4j-api:2.0.9")
-    implementation("ch.qos.logback:logback-classic:1.4.14")
+    implementation(libs.slf4j.api)
+    implementation(libs.logback.classic)
     
     // Testing
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
+    testImplementation(libs.junit.jupiter)
     testImplementation("org.jetbrains.kotlin:kotlin-test")
-    testImplementation("io.mockk:mockk:1.13.8")
-    testImplementation("org.assertj:assertj-core:3.24.2")
     
     // JMH Benchmarking
-    jmh("org.openjdk.jmh:jmh-core:1.37")
-    jmh("org.openjdk.jmh:jmh-generator-annprocess:1.37")
+    jmh(libs.jmh.core)
+    jmh(libs.jmh.generator.annprocess)
 }
 
 // Configure ANTLR
