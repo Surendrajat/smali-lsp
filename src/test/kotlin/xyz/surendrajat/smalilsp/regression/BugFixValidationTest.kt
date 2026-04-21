@@ -38,17 +38,27 @@ class BugFixValidationTest {
             index.indexFile(file!!)
         }
         
-        // Test reverse lookup - should be fast
+        // Warm the lookup path once before timing to avoid one-off startup noise.
         val testUri = "file:///test/Class500.smali"
+        repeat(1_000) {
+            index.findClassNameByUri(testUri)
+        }
+
+        // Test reverse lookup over many iterations so we measure steady-state behavior,
+        // not a single noisy sample.
+        val iterations = 10_000
         val startTime = System.nanoTime()
-        val className = index.findClassNameByUri(testUri)
+        var className: String? = null
+        repeat(iterations) {
+            className = index.findClassNameByUri(testUri)
+        }
         val endTime = System.nanoTime()
-        val durationMs = (endTime - startTime) / 1_000_000.0
+        val averageMicros = (endTime - startTime).toDouble() / iterations / 1_000.0
         
         assertEquals("Lcom/example/Class500;", className)
-        assertTrue(durationMs < 1.0, "Lookup should be O(1), took ${durationMs}ms")
+        assertTrue(averageMicros < 50.0, "Lookup should stay well below 50µs on average, took ${averageMicros}µs")
         
-        println("✅ BUG #1 FIXED: findClassNameByUri took ${String.format("%.3f", durationMs)}ms for 1000 files")
+        println("✅ BUG #1 FIXED: findClassNameByUri averaged ${String.format("%.3f", averageMicros)}µs for 1000 files")
     }
     
     /**
