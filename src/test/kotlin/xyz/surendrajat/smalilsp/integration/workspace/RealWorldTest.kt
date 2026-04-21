@@ -175,19 +175,23 @@ class RealWorldTest {
             totalTime += hoverTime
         }
         
+        val testedCount = sample.size - skippedCount
+        val successRate = if (testedCount > 0) successCount * 100.0 / testedCount else 0.0
         val avgTime = if (successCount > 0) totalTime / successCount else 0
-        println("✅ Hover: $successCount/${sample.size} successful (skipped: $skippedCount), avg ${avgTime}ms")
-        if (successCount > 0) {
+        println("✅ Hover: $successCount/$testedCount successful (skipped: $skippedCount), avg ${avgTime}ms")
+        if (testedCount > 0) {
+            assertTrue(successRate >= 95.0, "Hover should succeed for >=95% of tested classes, got ${"%.1f".format(successRate)}%")
             assertTrue(avgTime < 100, "Average hover time ${avgTime}ms exceeds 100ms target")
         }
     }
     
     @Test
     fun `goto definition works on real inheritance`() {
-        // Find classes with super classes
+        // Find classes whose superclass is indexed in the workspace.
         val classesWithSuper = indexedClasses.mapNotNull { className ->
             val smaliFile = index.findClass(className)
-            if (smaliFile?.classDefinition?.superClass != null) {
+            val superClass = smaliFile?.classDefinition?.superClass
+            if (smaliFile != null && superClass != null && index.findClass(superClass) != null) {
                 className
             } else {
                 null
@@ -206,24 +210,8 @@ class RealWorldTest {
             val content = file.readText()
             
             val parsedFile = parser.parse(uri, content) ?: return@forEach
-            val superClass = parsedFile.classDefinition.superClass ?: return@forEach
-            
-            // Find position of super class reference in file
-            val lines = content.lines()
-            var superRefLine = -1
-            var superRefCol = -1
-            for ((lineIdx, line) in lines.withIndex()) {
-                val col = line.indexOf(superClass)
-                if (col >= 0) {
-                    superRefLine = lineIdx
-                    superRefCol = col + 1  // Position in middle of class name
-                    break
-                }
-            }
-            
-            if (superRefLine == -1) return@forEach
-            
-            val position = Position(superRefLine, superRefCol)
+            val superRange = parsedFile.classDefinition.superClassRange ?: return@forEach
+            val position = Position(superRange.start.line, superRange.start.character + 1)
             
             // Test goto definition
             val gotoTime = measureTimeMillis {
@@ -235,22 +223,29 @@ class RealWorldTest {
             totalTime += gotoTime
         }
         
+        val successRate = if (classesWithSuper.isNotEmpty()) successCount * 100.0 / classesWithSuper.size else 0.0
         val avgTime = if (classesWithSuper.isNotEmpty()) totalTime / classesWithSuper.size else 0
-        println("✅ Goto definition: $successCount/${classesWithSuper.size} successful, avg ${avgTime}ms")
+        println("✅ Goto definition: $successCount/${classesWithSuper.size} successful (${String.format("%.1f", successRate)}%), avg ${avgTime}ms")
         if (classesWithSuper.isNotEmpty()) {
+            assertTrue(successRate >= 95.0, "Goto definition should resolve >=95% of workspace superclasses, got ${String.format("%.1f", successRate)}%")
             assertTrue(avgTime < 50, "Average goto definition time ${avgTime}ms exceeds 50ms target")
         }
     }
     
     @Test
     fun `find references works on real classes`() {
-        // Find classes that are likely to have references (exclude very common ones)
-        val sampleClasses = indexedClasses.filter { !it.startsWith("Ljava/") && !it.startsWith("Landroid/") }
+        // Only sample classes that have actual indexed references.
+        val sampleClasses = indexedClasses.filter { className ->
+            !className.startsWith("Ljava/") &&
+            !className.startsWith("Landroid/") &&
+            (index.findClassUsages(className).isNotEmpty() || index.findClassRefLocations(className).isNotEmpty())
+        }
             .shuffled()
             .take(30)
         
         var totalTime = 0L
         var successCount = 0
+        var testedCount = 0
         
         sampleClasses.forEach { className ->
             val uri = index.getUri(className) ?: return@forEach
@@ -267,6 +262,7 @@ class RealWorldTest {
             // Test find references
             val refTime = measureTimeMillis {
                 val locations = referenceProvider.findReferences(uri, position, includeDeclaration = false)
+                testedCount++
                 if (locations.isNotEmpty()) {
                     successCount++
                 }
@@ -274,9 +270,11 @@ class RealWorldTest {
             totalTime += refTime
         }
         
-        val avgTime = if (sampleClasses.isNotEmpty()) totalTime / sampleClasses.size else 0
-        println("✅ Find references: $successCount/${sampleClasses.size} successful, avg ${avgTime}ms")
-        if (sampleClasses.isNotEmpty()) {
+        val successRate = if (testedCount > 0) successCount * 100.0 / testedCount else 0.0
+        val avgTime = if (testedCount > 0) totalTime / testedCount else 0
+        println("✅ Find references: $successCount/$testedCount successful (${String.format("%.1f", successRate)}%), avg ${avgTime}ms")
+        if (testedCount > 0) {
+            assertTrue(successRate >= 95.0, "Find references should resolve >=95% of sampled referenced classes, got ${String.format("%.1f", successRate)}%")
             assertTrue(avgTime < 200, "Average find references time ${avgTime}ms exceeds 200ms target")
         }
     }
@@ -310,9 +308,11 @@ class RealWorldTest {
             totalTime += symbolTime
         }
         
+        val successRate = if (sample.isNotEmpty()) successCount * 100.0 / sample.size else 0.0
         val avgTime = if (sample.isNotEmpty()) totalTime / sample.size else 0
-        println("✅ Document symbols: $successCount/${sample.size} successful, avg ${avgTime}ms")
+        println("✅ Document symbols: $successCount/${sample.size} successful (${String.format("%.1f", successRate)}%), avg ${avgTime}ms")
         if (sample.isNotEmpty()) {
+            assertTrue(successRate >= 95.0, "Document symbols should succeed for >=95% of sampled files, got ${String.format("%.1f", successRate)}%")
             assertTrue(avgTime < 50, "Average document symbols time ${avgTime}ms exceeds 50ms target")
         }
     }

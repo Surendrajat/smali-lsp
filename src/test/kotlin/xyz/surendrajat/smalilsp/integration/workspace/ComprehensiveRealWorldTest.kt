@@ -238,48 +238,36 @@ class ComprehensiveRealWorldTest {
         var skippedCount = 0
         val failures = mutableListOf<String>()
         
-        // Filter for classes with superclass
+        // Filter for classes whose superclass is indexed in the workspace.
         val classesWithSuper = allClasses.filter { className ->
             val smaliFile = index.findClass(className)
-            smaliFile?.classDefinition?.superClass != null &&
-            !smaliFile.classDefinition.superClass!!.startsWith("Ljava/")
+            val superClass = smaliFile?.classDefinition?.superClass
+            smaliFile?.classDefinition?.superClassRange != null &&
+            superClass != null &&
+            index.findClass(superClass) != null
         }
         
-        println("Testing ${classesWithSuper.size} classes with non-Java superclasses")
+        println("Testing ${classesWithSuper.size} classes with workspace superclasses")
         
         classesWithSuper.forEach { className ->
-            val uri = index.getUri(className) ?: run {
+            val smaliFile = index.findClass(className) ?: run {
                 skippedCount++
                 return@forEach
             }
+
+            val uri = smaliFile.uri
             
             if (uri.startsWith("sdk://")) {
                 skippedCount++
                 return@forEach
             }
-            
-            val filePath = uri.removePrefix("file:")
-            val file = File(filePath)
-            if (!file.exists()) {
+
+            val superRange = smaliFile.classDefinition.superClassRange ?: run {
                 skippedCount++
                 return@forEach
             }
-            
-            val content = file.readText()
-            val parsedFile = parser.parse(uri, content) ?: run {
-                skippedCount++
-                return@forEach
-            }
-            
-            // Find .super line in content
-            val lines = content.lines()
-            val superLineIndex = lines.indexOfFirst { it.trim().startsWith(".super") }
-            if (superLineIndex < 0) {
-                skippedCount++
-                return@forEach
-            }
-            
-            val position = Position(superLineIndex, 10)  // somewhere in .super line
+
+            val position = Position(superRange.start.line, superRange.start.character + 1)
             
             // Measure goto definition time
             val timeUs = measureTimeMillis {
@@ -317,10 +305,7 @@ class ComprehensiveRealWorldTest {
             println("  p95:            ${"%.3f".format(p95 / 1000.0)}ms")
             println("  p99:            ${"%.3f".format(p99 / 1000.0)}ms")
             
-            // REQUIREMENTS: 75%+ success (lower than hover since many superclasses are SDK/external)
-            // Real APKs have ~20% SDK superclasses (android.*, java.*) which have no workspace definitions
-            // NOTE: Mastodon APK achieves 79.76% (298/1472 are SDK classes)
-            assertTrue(successRate >= 75.0, "Success rate must be ≥75%, got ${"%.2f".format(successRate)}%")
+            assertTrue(successRate >= 90.0, "Success rate must be ≥90% for full-workspace superclass resolution, got ${"%.2f".format(successRate)}%")
             assertTrue(p95 < 100_000, "p95 latency must be <100ms, got ${"%.3f".format(p95 / 1000.0)}ms")
             
             println("\n✅ PASSED: Success rate and performance requirements met")
@@ -336,53 +321,50 @@ class ComprehensiveRealWorldTest {
     fun `test sample files - find references (full test would be too slow)`() {
         println("\n📊 TEST 4: Find References on sample files")
         println("-".repeat(80))
-        println("⚠️  Note: Full reference scan is O(n²), testing sample of 200 files")
+        println("⚠️  Note: Full reference scan is O(n²), testing sample of 200 referenced classes")
         
         val times = mutableListOf<Long>()
         var successCount = 0
         var failCount = 0
         var skippedCount = 0
+        val failures = mutableListOf<String>()
         
-        // Filter non-framework classes
-        val nonFrameworkClasses = allClasses.filter { !it.startsWith("Ljava/") && !it.startsWith("Landroid/") }
+        val referencedClasses = allClasses.filter { className ->
+            !className.startsWith("Ljava/") &&
+            !className.startsWith("Landroid/") &&
+            (index.findClassUsages(className).isNotEmpty() || index.findClassRefLocations(className).isNotEmpty())
+        }
         
-        // Take a larger sample (200 instead of 50)
-        val sampleSize = minOf(200, nonFrameworkClasses.size)
-        val sample = nonFrameworkClasses.shuffled().take(sampleSize)
+        val sampleSize = minOf(200, referencedClasses.size)
+        val sample = referencedClasses.shuffled().take(sampleSize)
         
-        println("Testing $sampleSize classes (out of ${nonFrameworkClasses.size} non-framework classes)")
+        println("Testing $sampleSize classes (out of ${referencedClasses.size} referenced classes)")
         
         sample.forEach { className ->
-            val uri = index.getUri(className) ?: run {
+            val smaliFile = index.findClass(className) ?: run {
                 skippedCount++
                 return@forEach
             }
+
+            val uri = smaliFile.uri
             
             if (uri.startsWith("sdk://")) {
                 skippedCount++
                 return@forEach
             }
             
-            val filePath = uri.removePrefix("file:")
-            val file = File(filePath)
-            if (!file.exists()) {
-                skippedCount++
-                return@forEach
-            }
-            
-            val content = file.readText()
-            val parsedFile = parser.parse(uri, content) ?: run {
-                skippedCount++
-                return@forEach
-            }
-            
-            val classDefRange = parsedFile.classDefinition.range
+            val classDefRange = smaliFile.classDefinition.range
             val position = Position(classDefRange.start.line, classDefRange.start.character + 5)
             
             // Measure find references time
             val timeUs = measureTimeMillis {
-                val locations = referenceProvider.findReferences(uri, position)
-                successCount++  // We count any result (even empty) as success
+                val locations = referenceProvider.findReferences(uri, position, includeDeclaration = false)
+                if (locations.isEmpty()) {
+                    failCount++
+                    failures.add(className)
+                } else {
+                    successCount++
+                }
             } * 1000  // convert to μs
             
             times.add(timeUs)
@@ -391,6 +373,7 @@ class ComprehensiveRealWorldTest {
         times.sort()
         
         val total = successCount + failCount
+        val successRate = if (total > 0) (successCount.toDouble() / total) * 100 else 0.0
         
         println("Results:")
         println("  Total tested:   $total")
@@ -408,10 +391,15 @@ class ComprehensiveRealWorldTest {
             println("  p95:            ${"%.3f".format(p95 / 1000.0)}ms")
             println("  p99:            ${"%.3f".format(p99 / 1000.0)}ms")
             
-            // REQUIREMENT: p95 < 500ms (references can be slower as it searches all files)
+            assertTrue(successRate >= 95.0, "Success rate must be ≥95% for sampled referenced classes, got ${"%.2f".format(successRate)}%")
             assertTrue(p95 < 500_000, "p95 latency must be <500ms, got ${"%.3f".format(p95 / 1000.0)}ms")
             
             println("\n✅ PASSED: Performance requirements met")
+        }
+
+        if (failures.isNotEmpty()) {
+            println("\nFirst 10 failures:")
+            failures.take(10).forEach { println("  - $it") }
         }
     }
     

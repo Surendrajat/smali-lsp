@@ -6,10 +6,7 @@ import org.eclipse.lsp4j.*
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import xyz.surendrajat.smalilsp.index.WorkspaceIndex
-import xyz.surendrajat.smalilsp.indexer.WorkspaceScanner
-import java.io.File
-import java.util.concurrent.TimeUnit
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 import xyz.surendrajat.smalilsp.shared.E2ETestHarness
@@ -43,6 +40,7 @@ class DiagnosticE2ETest {
         println("=== TEST: diagnostics published on file open ===")
         
         val server = harness.server
+        val uri = "file:///test.smali"
         
         // Open file with valid content
         val validContent = """
@@ -56,17 +54,16 @@ class DiagnosticE2ETest {
         
         server.textDocumentService.didOpen(DidOpenTextDocumentParams().apply {
             textDocument = TextDocumentItem(
-                "file:///test.smali",
+                uri,
                 "smali",
                 1,
                 validContent
             )
         })
-        
-        Thread.sleep(200) // Wait for async processing
-        
-        // Diagnostics should be published (either empty or with warnings)
-        // Since we're testing E2E, we just verify no crash
+
+        val diagnostics = harness.waitForDiagnostics(uri)
+        assertEquals(emptyList(), diagnostics, "Valid file should publish an empty diagnostics list")
+
         println("✅ Diagnostics published without crash")
     }
     
@@ -75,6 +72,7 @@ class DiagnosticE2ETest {
         println("=== TEST: diagnostics detect undefined class references ===")
         
         val server = harness.server
+        val uri = "file:///test.smali"
         
         // Content with undefined class reference
         val content = """
@@ -89,16 +87,18 @@ class DiagnosticE2ETest {
         
         server.textDocumentService.didOpen(DidOpenTextDocumentParams().apply {
             textDocument = TextDocumentItem(
-                "file:///test.smali",
+                uri,
                 "smali",
                 1,
                 content
             )
         })
-        
-        Thread.sleep(200)
-        
-        // Should handle undefined references gracefully
+
+        val diagnostics = harness.waitForDiagnostics(uri)
+        assertEquals(2, diagnostics.size, "Should publish one superclass warning and one undefined invoke target warning")
+        assertTrue(diagnostics.any { it.message.contains("NonExistentSuperClass") }, "Should report the missing superclass")
+        assertTrue(diagnostics.any { it.message.contains("UndefinedClass") }, "Should report the missing invoke target class")
+
         println("✅ Handled undefined class references")
     }
     
@@ -142,7 +142,9 @@ class DiagnosticE2ETest {
             server.textDocumentService.didOpen(DidOpenTextDocumentParams().apply {
                 textDocument = TextDocumentItem(uri, "smali", 1, content)
             })
-            
+
+            harness.waitForDiagnostics(uri, 5_000)
+
             val elapsed = System.currentTimeMillis() - startTime
             totalTime += elapsed
             maxTime = maxOf(maxTime, elapsed)
@@ -183,8 +185,9 @@ class DiagnosticE2ETest {
         server.textDocumentService.didOpen(DidOpenTextDocumentParams().apply {
             textDocument = TextDocumentItem(uri, "smali", 1, invalidContent)
         })
-        
-        Thread.sleep(100)
+
+        val initialDiagnostics = harness.waitForDiagnostics(uri)
+        assertTrue(initialDiagnostics.isNotEmpty(), "Invalid file should publish diagnostics before the edit")
         
         // Fix error
         val validContent = """
@@ -198,8 +201,9 @@ class DiagnosticE2ETest {
                 TextDocumentContentChangeEvent(validContent)
             )
         })
-        
-        Thread.sleep(100)
+
+        harness.client.waitForDiagnosticsCleared(uri)
+        assertEquals(emptyList(), harness.getDiagnostics(uri), "Diagnostics should be cleared after fixing the file")
         
         println("✅ Diagnostics updated on change")
     }
@@ -211,24 +215,31 @@ class DiagnosticE2ETest {
         val server = harness.server
         val uri = "file:///test.smali"
         
-        // Open file
+        val invalidContent = """
+            .class public LTest;
+            .super Lcom/example/Missing;
+        """.trimIndent()
+
+        // Open file with diagnostics
         server.textDocumentService.didOpen(DidOpenTextDocumentParams().apply {
             textDocument = TextDocumentItem(
                 uri,
                 "smali",
                 1,
-                ".class public LTest;\n.super Ljava/lang/Object;"
+                invalidContent
             )
         })
-        
-        Thread.sleep(100)
+
+        val diagnostics = harness.waitForDiagnostics(uri)
+        assertTrue(diagnostics.isNotEmpty(), "File should have diagnostics before close")
         
         // Close file (should clear diagnostics)
         server.textDocumentService.didClose(DidCloseTextDocumentParams().apply {
             textDocument = TextDocumentIdentifier(uri)
         })
-        
-        Thread.sleep(100)
+
+        harness.client.waitForDiagnosticsCleared(uri)
+        assertEquals(emptyList(), harness.getDiagnostics(uri), "Closing the file should clear diagnostics")
         
         println("✅ Diagnostics cleared on close")
     }
@@ -268,9 +279,12 @@ class DiagnosticE2ETest {
         })
         
         val elapsed = System.currentTimeMillis() - startTime
+        val diagnostics = harness.waitForDiagnostics("file:///test.smali")
+        val undefinedClassDiagnostics = diagnostics.count { it.message.contains("not found in workspace or SDK") }
         
         println("Massive file with 100 errors: ${elapsed}ms")
         assertTrue(elapsed < 1000, "Should handle massive file with errors in < 1s, took ${elapsed}ms")
+        assertEquals(100, undefinedClassDiagnostics, "Should publish one undefined-class diagnostic per broken invoke")
         
         println("✅ Massive file handled gracefully")
     }
@@ -308,8 +322,13 @@ class DiagnosticE2ETest {
         threads.forEach { it.start() }
         threads.forEach { it.join() }
         val elapsed = System.currentTimeMillis() - startTime
+
+        val diagnosticsByFile = (1..10).associateWith { i ->
+            harness.waitForDiagnostics("file:///test$i.smali", 2_000)
+        }
         
         println("Concurrent diagnostic requests (10 files): ${elapsed}ms")
+        assertTrue(diagnosticsByFile.values.all { it.isEmpty() }, "All concurrent valid files should publish empty diagnostics")
         
         println("✅ Concurrent requests handled")
     }

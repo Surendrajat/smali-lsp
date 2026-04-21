@@ -132,12 +132,8 @@ class BasicWorkflowE2ETest {
             // Find references
             val references = findReferences(uri, methodPos, includeDeclaration = true)
             
-            // Should find: definition + 2 calls = 3 total
-            assertTrue(references.size >= 3, 
-                "Should find at least 3 references (1 definition + 2 calls), found ${references.size}")
-            
-            // Verify references are in correct locations
             val refLines = references.map { it.range.start.line }.sorted()
+            assertEquals(listOf(3, 10, 16), refLines, "Should find exactly the definition and 2 call sites")
             println("Found references at lines: $refLines")
         }
     }

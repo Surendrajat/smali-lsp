@@ -4,7 +4,6 @@ import org.eclipse.lsp4j.Position
 import org.junit.jupiter.api.Test
 import xyz.surendrajat.smalilsp.shared.TempTestWorkspace
 import xyz.surendrajat.smalilsp.providers.ReferenceProvider
-import kotlin.test.assertTrue
 import kotlin.test.assertEquals
 
 /**
@@ -73,8 +72,15 @@ class FindReferencesStressTest {
             println("  - $fileName @ line ${ref.range.start.line}")
         }
         
-        // Should find 4 invoke-virtual calls (3 in Caller1, 1 in Caller2)
-        assertTrue(refs.size >= 4, "Should find at least 4 references, found ${refs.size}")
+        val actualReferences = refs.map { it.uri.substringAfterLast("/") to it.range.start.line }.toSet()
+        val expectedReferences = setOf(
+            "Caller1.smali" to 6,
+            "Caller1.smali" to 7,
+            "Caller1.smali" to 8,
+            "Caller2.smali" to 6,
+        )
+
+        assertEquals(expectedReferences, actualReferences, "Should find the exact targetMethod call sites")
         
         workspace.cleanup()
     }
@@ -129,8 +135,7 @@ class FindReferencesStressTest {
             println("  - line ${ref.range.start.line}")
         }
         
-        // Should find 4 field accesses (3 iget, 1 iput)
-        assertTrue(refs.size >= 4, "Should find at least 4 field accesses, found ${refs.size}")
+        assertEquals(setOf(5, 6, 7, 13), refs.map { it.range.start.line }.toSet(), "Should find the exact counter field access sites")
         
         workspace.cleanup()
     }
@@ -176,9 +181,7 @@ class FindReferencesStressTest {
             println("  - line ${ref.range.start.line}")
         }
         
-        // Should find: field type (line 3), method signature with param+return (line 5), new-instance (line 6), check-cast (line 7)
-        // Note: param type and return type are on same line so counted as 1 reference
-        assertTrue(refs.size >= 4, "Should find at least 4 class references, found ${refs.size}")
+        assertEquals(setOf(3, 5, 6, 7), refs.map { it.range.start.line }.toSet(), "Should find the exact MyClass reference sites")
         
         workspace.cleanup()
     }
@@ -233,8 +236,14 @@ class FindReferencesStressTest {
         
         println("Found ${refs.size} references to baseMethod")
         
-        // Should find all 3 invoke calls (including those through derived class)
-        assertTrue(refs.size >= 3, "Should find at least 3 method calls, found ${refs.size}")
+        val actualReferences = refs.map { it.uri.substringAfterLast("/") to it.range.start.line }.toSet()
+        val expectedReferences = setOf(
+            "Caller.smali" to 5,
+            "Caller.smali" to 8,
+            "Caller.smali" to 9,
+        )
+
+        assertEquals(expectedReferences, actualReferences, "Should find the exact inherited baseMethod call sites")
         
         workspace.cleanup()
     }
@@ -288,8 +297,14 @@ class FindReferencesStressTest {
         
         println("Found ${refs.size} references to MAX_SIZE")
         
-        // Should find 3 sget instructions
-        assertTrue(refs.size >= 3, "Should find at least 3 static field accesses, found ${refs.size}")
+        val actualReferences = refs.map { it.uri.substringAfterLast("/") to it.range.start.line }.toSet()
+        val expectedReferences = setOf(
+            "User1.smali" to 4,
+            "User1.smali" to 5,
+            "User2.smali" to 4,
+        )
+
+        assertEquals(expectedReferences, actualReferences, "Should find the exact MAX_SIZE access sites")
         
         workspace.cleanup()
     }
