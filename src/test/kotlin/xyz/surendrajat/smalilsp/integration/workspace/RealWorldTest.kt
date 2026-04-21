@@ -4,7 +4,6 @@ import kotlinx.coroutines.runBlocking
 import xyz.surendrajat.smalilsp.shared.TestUtils
 import org.junit.jupiter.api.*
 import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Assumptions.assumeTrue
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.indexer.WorkspaceScanner
 import xyz.surendrajat.smalilsp.parser.SmaliParser
@@ -32,7 +31,7 @@ import kotlin.system.measureTimeMillis
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class RealWorldTest {
 
-    private val mastodonPath = TestUtils.getMastodonApk()
+    private lateinit var mastodonPath: File
     
     private lateinit var index: WorkspaceIndex
     private lateinit var parser: SmaliParser
@@ -41,13 +40,15 @@ class RealWorldTest {
     private lateinit var referenceProvider: ReferenceProvider
     private lateinit var documentSymbolProvider: DocumentSymbolProvider
     
-    private var indexedClasses = mutableListOf<String>()
+    private val indexedClasses = mutableListOf<String>()
     
     @BeforeAll
     fun setup() {
         println("=".repeat(80))
         println("REAL-WORLD TEST: Mastodon APK (4,415 files)")
         println("=".repeat(80))
+
+        mastodonPath = TestUtils.requireMastodonApk()
         
         // Initialize components
         index = WorkspaceIndex()
@@ -58,18 +59,16 @@ class RealWorldTest {
         documentSymbolProvider = DocumentSymbolProvider()
         
         // Index the mastodon APK
-        assumeTrue(mastodonPath != null, "Mastodon APK not available — skipping RealWorldTest")
-        
         println("\n📂 Indexing mastodon APK...")
         val scanner = WorkspaceScanner(index)
         
-        var lastReported = intArrayOf(0) // Array to allow modification in lambda
+        var lastReported = 0
         val result = runBlocking {
-            scanner.scanDirectory(mastodonPath!!) { processed, total ->
+            scanner.scanDirectory(mastodonPath) { processed, total ->
                 val percentDone = (processed * 100) / total
-                if (percentDone >= lastReported[0] + 10) {
+                if (percentDone >= lastReported + 10) {
                     println("   Progress: $processed/$total files ($percentDone%)")
-                    lastReported[0] = percentDone
+                    lastReported = percentDone
                 }
             }
         }
@@ -84,7 +83,7 @@ class RealWorldTest {
         
         // Collect all indexed classes by iterating through smali files and checking with index
         // We parse each file with our parser to get the actual class name  
-        val smaliFiles = mastodonPath!!.walkTopDown()
+        val smaliFiles = mastodonPath.walkTopDown()
             .filter { it.extension == "smali" }
             .toList()
         

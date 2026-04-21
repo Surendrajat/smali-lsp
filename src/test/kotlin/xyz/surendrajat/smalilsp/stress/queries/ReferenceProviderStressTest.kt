@@ -2,7 +2,6 @@ package xyz.surendrajat.smalilsp.stress.queries
 
 import kotlinx.coroutines.runBlocking
 import org.eclipse.lsp4j.Position
-import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
@@ -31,7 +30,7 @@ import kotlin.system.measureTimeMillis
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ReferenceProviderStressTest {
     
-    private var workspaceRoot: File? = null
+    private lateinit var workspaceRoot: File
     private lateinit var index: WorkspaceIndex
     private lateinit var scanner: WorkspaceScanner
     private lateinit var provider: ReferenceProvider
@@ -40,9 +39,7 @@ class ReferenceProviderStressTest {
     
     @BeforeAll
     fun setup() = runBlocking {
-        val apk = TestUtils.getMastodonApk()
-        assumeTrue(apk != null, "Mastodon APK not available, skipping")
-        workspaceRoot = apk
+        workspaceRoot = TestUtils.requireMastodonApk()
         
         index = WorkspaceIndex()
         scanner = WorkspaceScanner(index)
@@ -54,7 +51,7 @@ class ReferenceProviderStressTest {
         
         // Index entire workspace
         indexTime = measureTimeMillis {
-            scanner.scanDirectory(workspaceRoot!!) { processed, total ->
+            scanner.scanDirectory(workspaceRoot) { processed, total ->
                 if (processed % 1000 == 0 || processed == total) {
                     println("Indexing: $processed/$total files")
                 }

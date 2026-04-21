@@ -3,7 +3,6 @@ package xyz.surendrajat.smalilsp.integration.lsp
 import org.eclipse.lsp4j.SymbolKind
 import org.eclipse.lsp4j.WorkspaceFolder
 import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -31,15 +30,15 @@ import xyz.surendrajat.smalilsp.shared.TestUtils
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class WorkspaceSymbolE2ETest {
 
-    private val mastodonPath = TestUtils.getMastodonApk()
+    private lateinit var mastodonPath: File
     private lateinit var harness: E2ETestHarness
     private lateinit var workspace: TestWorkspace
     
     @BeforeAll
     fun setup() {
-        assumeTrue(mastodonPath?.exists() == true, "Mastodon APK not available — skipping WorkspaceSymbolE2ETest")
+        mastodonPath = TestUtils.requireMastodonApk()
 
-        workspace = TestWorkspace(mastodonPath!!)
+        workspace = TestWorkspace(mastodonPath)
         harness = E2ETestHarness(workspace)
 
         // Initialize with Mastodon workspace folder
@@ -54,7 +53,7 @@ class WorkspaceSymbolE2ETest {
 
     @AfterAll
     fun teardown() {
-        if (mastodonPath != null && mastodonPath.exists() && ::harness.isInitialized) {
+        if (::harness.isInitialized) {
             harness.cleanup()
         }
     }

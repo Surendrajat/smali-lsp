@@ -22,7 +22,6 @@ class DiagnosticE2ETest {
     
     private lateinit var harness: E2ETestHarness
     private lateinit var workspace: TestWorkspace
-    private val mastodonDir = TestUtils.getMastodonApk()
     
     @BeforeEach
     fun setup() {
@@ -105,8 +104,7 @@ class DiagnosticE2ETest {
     
     @Test
     fun `diagnostics on Mastodon files`() {
-        org.junit.jupiter.api.Assumptions.assumeTrue(mastodonDir != null, "Mastodon APK not available — skipping diagnostics on Mastodon files")
-        val mastodon = mastodonDir!!
+        val mastodon = TestUtils.requireMastodonApk()
         
         println("=== TEST: diagnostics on Mastodon files ===")
         

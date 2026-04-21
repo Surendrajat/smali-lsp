@@ -1,7 +1,6 @@
 package xyz.surendrajat.smalilsp.stress.parsing
 
 import org.eclipse.lsp4j.Position
-import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import xyz.surendrajat.smalilsp.shared.TestUtils
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
@@ -39,10 +38,7 @@ class GenericAPKStressTest {
      */
     @Test
     fun `stress test Mastodon APK`() {
-        val apkPath = TestUtils.getMastodonApk()
-        assumeTrue(apkPath != null, "Mastodon APK not available — skipping")
-        
-        val report = runStressTest(apkPath!!, "Mastodon")
+        val report = runStressTest(TestUtils.requireMastodonApk(), "Mastodon")
         
         // Print detailed report
         printReport(report)
@@ -63,10 +59,7 @@ class GenericAPKStressTest {
      */
     @Test
     fun `stress test ProtonMail APK`() {
-        val apkPath = TestUtils.getProtonMailApk()
-        assumeTrue(apkPath != null, "ProtonMail APK not available — skipping")
-        
-        val report = runStressTest(apkPath!!, "ProtonMail")
+        val report = runStressTest(TestUtils.requireProtonMailApk(), "ProtonMail")
         
         // Print detailed report
         printReport(report)

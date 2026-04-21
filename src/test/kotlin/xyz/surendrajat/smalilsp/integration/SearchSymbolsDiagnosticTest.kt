@@ -2,7 +2,6 @@ package xyz.surendrajat.smalilsp.integration
 
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
-import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.TestInstance
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
@@ -10,7 +9,6 @@ import xyz.surendrajat.smalilsp.indexer.WorkspaceScanner
 import xyz.surendrajat.smalilsp.parser.SmaliParser
 import xyz.surendrajat.smalilsp.providers.WorkspaceSymbolProvider
 import xyz.surendrajat.smalilsp.shared.TestUtils
-import java.io.File
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -26,6 +24,7 @@ import kotlinx.coroutines.runBlocking
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class SearchSymbolsDiagnosticTest {
     
+    private lateinit var mastodonDir: java.io.File
     private lateinit var index: WorkspaceIndex
     private lateinit var provider: WorkspaceSymbolProvider
     private var totalClasses = 0
@@ -37,15 +36,14 @@ class SearchSymbolsDiagnosticTest {
      */
     @BeforeAll
     fun setup() {
-        val mastodonDir = TestUtils.getMastodonApk()
-        assumeTrue(mastodonDir?.exists() == true, "Mastodon APK not available — skipping SearchSymbolsDiagnosticTest")
+        mastodonDir = TestUtils.requireMastodonApk()
         
         val parser = SmaliParser()
         index = WorkspaceIndex()
         val scanner = WorkspaceScanner(index, parser)
         
         runBlocking {
-            scanner.scanDirectory(mastodonDir!!)
+            scanner.scanDirectory(mastodonDir)
         }
         
         totalClasses = index.getAllClassNames().size
@@ -71,11 +69,7 @@ class SearchSymbolsDiagnosticTest {
         val allClasses = index.getAllClassNames()
         
         // Group by simple name to understand the data
-        val bySimpleName = allClasses.groupBy { className ->
-            className.removePrefix("L").removeSuffix(";")
-                .substringAfterLast("/")
-                .substringAfterLast("$")
-        }
+        val bySimpleName = allClasses.groupBy(::simpleClassName)
         
         // Test unique simple names (to avoid testing "a" 100 times)
         var found = 0
@@ -84,11 +78,7 @@ class SearchSymbolsDiagnosticTest {
         val tested = mutableSetOf<String>()
         
         allClasses.take(200).forEach { className ->
-            val simpleName = className
-                .removePrefix("L")
-                .removeSuffix(";")
-                .substringAfterLast("/")
-                .substringAfterLast("$")
+            val simpleName = simpleClassName(className)
             
             // Skip if we already tested this simple name
             if (simpleName in tested) return@forEach
@@ -99,12 +89,7 @@ class SearchSymbolsDiagnosticTest {
             
             // Check if ANY class with this simple name is in results
             val matchFound = results.any { result ->
-                val resultSimpleName = result.name
-                    .removePrefix("L")
-                    .removeSuffix(";")
-                    .substringAfterLast("/")
-                    .substringAfterLast("$")
-                resultSimpleName == simpleName
+                simpleClassName(result.name) == simpleName
             }
             
             if (matchFound) {
@@ -150,14 +135,7 @@ class SearchSymbolsDiagnosticTest {
             // Display name format: "Lcom/example/Class;.methodName"
             val foundCount = results.count { result ->
                 if (result.kind != org.eclipse.lsp4j.SymbolKind.Method) return@count false
-                val displayName = result.name
-                val dotIndex = displayName.lastIndexOf('.')
-                if (dotIndex > 0) {
-                    val extractedMethodName = displayName.substring(dotIndex + 1)
-                    extractedMethodName.equals(methodName, ignoreCase = true)
-                } else {
-                    false
-                }
+                symbolMethodName(result.name)?.equals(methodName, ignoreCase = true) == true
             }
             
             println("$methodName: found $foundCount, actual $actualCount")
@@ -251,14 +229,7 @@ class SearchSymbolsDiagnosticTest {
             // Display name format: "Lcom/example/Class;.methodName"
             val found = results.count { result ->
                 if (result.kind != org.eclipse.lsp4j.SymbolKind.Method) return@count false
-                val displayName = result.name
-                val dotIndex = displayName.lastIndexOf('.')
-                if (dotIndex > 0) {
-                    val extractedMethodName = displayName.substring(dotIndex + 1)
-                    extractedMethodName == methodName
-                } else {
-                    false
-                }
+                symbolMethodName(result.name) == methodName
             }
             
             totalSearched++
@@ -287,5 +258,16 @@ class SearchSymbolsDiagnosticTest {
         
         // Target: 80% accuracy (realistic for obfuscated code with many short names)
         assertTrue(accuracy >= 80, "Accuracy should be >= 80%, got $accuracy%")
+    }
+
+    private fun simpleClassName(className: String): String {
+        return className.removePrefix("L").removeSuffix(";")
+            .substringAfterLast("/")
+            .substringAfterLast("$")
+    }
+
+    private fun symbolMethodName(displayName: String): String? {
+        val dotIndex = displayName.lastIndexOf('.')
+        return if (dotIndex > 0) displayName.substring(dotIndex + 1) else null
     }
 }

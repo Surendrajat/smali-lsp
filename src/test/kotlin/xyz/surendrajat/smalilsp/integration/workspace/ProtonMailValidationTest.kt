@@ -31,10 +31,7 @@ class ProtonMailValidationTest {
     
     @BeforeAll
     fun setup() {
-        val apk = TestUtils.getProtonMailApk()
-        org.junit.jupiter.api.Assumptions.assumeTrue(apk != null, "ProtonMail APK not available, skipping")
-        workspaceDir = apk!!
-        assertTrue(workspaceDir.exists(), "ProtonMail decompiled directory must exist")
+        workspaceDir = TestUtils.requireProtonMailApk()
         
         index = WorkspaceIndex()
         scanner = WorkspaceScanner(index)

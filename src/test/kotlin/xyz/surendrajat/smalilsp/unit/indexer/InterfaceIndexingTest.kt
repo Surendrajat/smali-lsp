@@ -13,7 +13,6 @@ import xyz.surendrajat.smalilsp.indexer.WorkspaceScanner
 import xyz.surendrajat.smalilsp.providers.DefinitionProvider
 import java.io.File
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -29,14 +28,13 @@ class InterfaceIndexingTest {
     private lateinit var definitionProvider: DefinitionProvider
     private lateinit var interfaceFiles: List<File>
     private lateinit var interfaceRoot: File
-    private var apkDir: File? = null
+    private lateinit var apkDir: File
 
     @BeforeAll
     fun setup() {
-        apkDir = TestUtils.getProtonMailApk()
-        assumeTrue(apkDir != null, "ProtonMail APK not available — skipping")
+        apkDir = TestUtils.requireProtonMailApk()
 
-        val groupedInterfaceFiles = apkDir!!
+        val groupedInterfaceFiles = apkDir
             .walkTopDown()
             .filter { it.isFile && it.name.contains("Interface") && it.extension == "smali" }
             .toList()
@@ -44,9 +42,10 @@ class InterfaceIndexingTest {
             .maxByOrNull { it.value.size }
 
         assumeTrue(groupedInterfaceFiles != null, "No interface files found in ProtonMail APK — skipping")
+        val interfaceGroup = checkNotNull(groupedInterfaceFiles)
 
-        interfaceRoot = groupedInterfaceFiles!!.key
-        interfaceFiles = groupedInterfaceFiles.value.sortedBy { it.name }.take(10)
+        interfaceRoot = interfaceGroup.key
+        interfaceFiles = interfaceGroup.value.sortedBy { it.name }.take(10)
 
         index = WorkspaceIndex()
         scanner = WorkspaceScanner(index)
@@ -63,65 +62,55 @@ class InterfaceIndexingTest {
     
     @Test
     fun `interface files should be indexed`() {
-        runBlocking {
-            assumeTrue(apkDir != null, "ProtonMail APK not available — skipping")
+        println("\n=== Testing Interface Indexing ===")
+        println("Found ${interfaceFiles.size} interface files to test")
+        println("Scanned root: ${interfaceRoot.absolutePath}")
 
-            println("\n=== Testing Interface Indexing ===")
-            println("Found ${interfaceFiles.size} interface files to test")
-            println("Scanned root: ${interfaceRoot.absolutePath}")
+        var indexed = 0
+        var notIndexed = 0
 
-            assumeTrue(interfaceFiles.isNotEmpty(), "No interface files found in APK — skipping")
+        for (file in interfaceFiles) {
+            val uri = file.toURI().toString()
+            val smaliFile = index.findFileByUri(uri)
 
-            var indexed = 0
-            var notIndexed = 0
+            if (smaliFile != null) {
+                println("✅ INDEXED: ${file.name} → ${smaliFile.classDefinition.name}")
+                indexed++
+            } else {
+                println("❌ NOT INDEXED: ${file.name}")
+                notIndexed++
 
-            for (file in interfaceFiles) {
-                val uri = file.toURI().toString()
-                val smaliFile = index.findFileByUri(uri)
-
-                if (smaliFile != null) {
-                    println("✅ INDEXED: ${file.name} → ${smaliFile.classDefinition.name}")
-                    indexed++
-                } else {
-                    println("❌ NOT INDEXED: ${file.name}")
-                    notIndexed++
-
-                    // Check if it's in the class map
-                    val content = file.readText()
-                    val classLineMatch = Regex(""".class.*?L([^;]+);""").find(content)
-                    if (classLineMatch != null) {
-                        val className = "L${classLineMatch.groupValues[1]};"
-                        val found = index.findClass(className)
-                        if (found != null) {
-                            println("  → Found by class name: $className")
-                        } else {
-                            println("  → NOT found by class name: $className")
-                        }
+                val content = file.readText()
+                val classLineMatch = Regex(""".class.*?L([^;]+);""").find(content)
+                if (classLineMatch != null) {
+                    val className = "L${classLineMatch.groupValues[1]};"
+                    val found = index.findClass(className)
+                    if (found != null) {
+                        println("  → Found by class name: $className")
+                    } else {
+                        println("  → NOT found by class name: $className")
                     }
                 }
             }
-
-            val total = indexed + notIndexed
-            println("\nResults:")
-            println("  Indexed: $indexed")
-            println("  Not indexed: $notIndexed")
-            if (total > 0) println("  Success rate: ${"%.1f".format(indexed * 100.0 / total)}%")
-
-            assertEquals(interfaceFiles.size, indexed, "Every sampled interface file should be indexed")
         }
+
+        val total = indexed + notIndexed
+        println("\nResults:")
+        println("  Indexed: $indexed")
+        println("  Not indexed: $notIndexed")
+        if (total > 0) println("  Success rate: ${"%.1f".format(indexed * 100.0 / total)}%")
+
+        assertEquals(interfaceFiles.size, indexed, "Every sampled interface file should be indexed")
     }
     
     @Test
     fun `interface navigation should work`() = runBlocking {
-        assumeTrue(apkDir != null, "ProtonMail APK not available — skipping")
-
         val interfaceFile = interfaceFiles.firstOrNull { it.name.endsWith("Interface.smali") }
             ?: interfaceFiles.firstOrNull()
-
-        assumeTrue(interfaceFile != null, "No interface files found in ProtonMail APK — skipping")
+        assertTrue(interfaceFile != null, "Setup should provide at least one interface file")
         
         println("\n=== Testing Interface Navigation ===")
-        println("Testing: ${interfaceFile!!.name}")
+        println("Testing: ${interfaceFile.name}")
         
         val uri = interfaceFile.toURI().toString()
         val content = interfaceFile.readText()

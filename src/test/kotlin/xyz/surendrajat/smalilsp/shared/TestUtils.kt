@@ -77,6 +77,31 @@ object TestUtils {
         assumeTrue(apk?.exists() == true, "ProtonMail APK not available — skipping")
         return apk!!
     }
+
+    /**
+     * Require a path inside a decompiled APK root, otherwise skip the current test.
+     */
+    fun requireApkPath(apk: File?, apkName: String, relativePath: String, description: String = relativePath): File {
+        assumeTrue(apk?.exists() == true, "$apkName APK not available — skipping")
+
+        val target = File(apk!!, relativePath)
+        assumeTrue(target.exists(), "$apkName test path not available ($description) — skipping")
+        return target
+    }
+
+    /**
+     * Require a path inside the Mastodon APK, otherwise skip the current test.
+     */
+    fun requireMastodonPath(relativePath: String, description: String = relativePath): File {
+        return requireApkPath(getMastodonApk(), "Mastodon", relativePath, description)
+    }
+
+    /**
+     * Require a path inside the ProtonMail APK, otherwise skip the current test.
+     */
+    fun requireProtonMailPath(relativePath: String, description: String = relativePath): File {
+        return requireApkPath(getProtonMailApk(), "ProtonMail", relativePath, description)
+    }
     
     /**
      * Get all available APK directories for stress testing.

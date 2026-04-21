@@ -2,7 +2,6 @@ package xyz.surendrajat.smalilsp.regression
 
 import xyz.surendrajat.smalilsp.shared.TestUtils
 
-import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.io.TempDir
@@ -82,8 +81,7 @@ class ParserFixVerificationTest {
     
     @Test
     fun `stress test real APK - Mastodon if available`() {
-        val mastodonDir = TestUtils.getMastodonApk()
-        assumeTrue(mastodonDir?.exists() == true, "Mastodon APK not available — skipping parser verification stress test")
+        val mastodonDir = TestUtils.requireMastodonApk()
         
         println("\n=== Stress Testing with Mastodon APK ===")
         
@@ -93,7 +91,7 @@ class ParserFixVerificationTest {
         var arrayInvocationCount = 0
         val errors = mutableListOf<String>()
         
-        mastodonDir!!.walkTopDown()
+        mastodonDir.walkTopDown()
             .filter { it.extension == "smali" }
             .forEach { file ->
                 totalFiles++
@@ -142,8 +140,7 @@ class ParserFixVerificationTest {
     
     @Test
     fun `stress test fallback real APK dataset for array parsing`() {
-        val basedDir = TestUtils.getMastodonApk()
-        assumeTrue(basedDir?.exists() == true, "Mastodon fallback APK not available — skipping parser verification stress test")
+        val basedDir = TestUtils.requireMastodonApk()
         
         println("\n=== Stress Testing with fallback real APK dataset ===")
         
@@ -162,7 +159,7 @@ class ParserFixVerificationTest {
             "com/google/android/material/drawable/DrawableUtils.smali"
         )
         
-        basedDir!!.walkTopDown()
+        basedDir.walkTopDown()
             .filter { it.extension == "smali" }
             .forEach { file ->
                 totalFiles++

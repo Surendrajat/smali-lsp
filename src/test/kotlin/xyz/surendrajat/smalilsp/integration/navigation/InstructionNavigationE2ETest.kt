@@ -18,14 +18,22 @@ class InstructionNavigationE2ETest {
 
     private lateinit var workspaceIndex: WorkspaceIndex
     private lateinit var parser: SmaliParser
-    
-    // Real Smali file from ProtonMail APK
-    private val testSmaliFile: File? = TestUtils.getProtonMailApk()?.let { File(it, "smali_classes2/u00/h.smali") }
-    private val testUri: String = testSmaliFile?.toURI()?.toString() ?: "file:///unknown.smali"
+
+    private lateinit var testSmaliFile: File
+    private lateinit var testPackageDir: File
+    private lateinit var testUri: String
     
     @BeforeAll
     fun setupE2E() {
-        Assumptions.assumeTrue(testSmaliFile?.exists() == true, "Test requires protonmail APK at: ${testSmaliFile?.absolutePath}")
+        testSmaliFile = TestUtils.requireProtonMailPath(
+            "smali_classes2/u00/h.smali",
+            "sample instruction navigation file"
+        )
+        testPackageDir = TestUtils.requireProtonMailPath(
+            "smali_classes2/u00",
+            "sample ProtonMail package directory"
+        )
+        testUri = testSmaliFile.toURI().toString()
     }
     
     @BeforeEach
@@ -39,7 +47,7 @@ class InstructionNavigationE2ETest {
     @Test
     fun `e2e - parse real ProtonMail smali file successfully`() {
         // Given: Real Smali file from ProtonMail APK (156 lines, 4 methods, 2 fields)
-        val content = testSmaliFile!!.readText()
+        val content = testSmaliFile.readText()
         
         // When: Parse file
         val smaliFile = parser.parse(testUri, content)
@@ -65,7 +73,7 @@ class InstructionNavigationE2ETest {
     @Test
     fun `e2e - parse and index real file`() {
         // Given: Real Smali file
-        val content = testSmaliFile!!.readText()
+        val content = testSmaliFile.readText()
         
         // When: Parse and index
         val smaliFile = parser.parse(testUri, content)
@@ -86,7 +94,7 @@ class InstructionNavigationE2ETest {
     @Test
     fun `e2e - real file contains getClassLoader instruction that was buggy`() {
         // Given: This file has the exact instruction user reported as buggy
-        val content = testSmaliFile!!.readText()
+        val content = testSmaliFile.readText()
         val smaliFile = parser.parse(testUri, content)
         
         // Then: File should have clinit method with getClassLoader call
@@ -110,11 +118,8 @@ class InstructionNavigationE2ETest {
     @Test
     fun `e2e - parse multiple files from same package`() {
         // Given: u00 directory with multiple Smali files
-        val testDir = File(TestUtils.requireProtonMailApk(), "smali_classes2/u00")
-        Assumptions.assumeTrue(testDir.exists() && testDir.isDirectory, "Test requires protonmail u00 directory")
-        
         // When: Parse small files (<10KB) from same package
-        val parsedFiles = testDir.listFiles { file -> 
+        val parsedFiles = testPackageDir.listFiles { file -> 
             file.extension == "smali" && file.length() < 10000 
         }?.take(5)?.map { file ->
             val uri = file.toURI().toString()
@@ -141,11 +146,8 @@ class InstructionNavigationE2ETest {
     @Test
     fun `e2e - index multiple files and find cross-references`() {
         // Given: Multiple files from same package
-        val testDir = File(TestUtils.requireProtonMailApk(), "smali_classes2/u00")
-        Assumptions.assumeTrue(testDir.exists() && testDir.isDirectory, "Test requires protonmail u00 directory")
-        
         // When: Parse and index multiple files
-        testDir.listFiles { file -> file.extension == "smali" && file.length() < 10000 }
+        testPackageDir.listFiles { file -> file.extension == "smali" && file.length() < 10000 }
             ?.take(10)
             ?.forEach { file ->
                 val uri = file.toURI().toString()
@@ -171,7 +173,7 @@ class InstructionNavigationE2ETest {
     @Test
     fun `e2e - parsing real file completes in reasonable time`() {
         // Given: Real Smali file (156 lines)
-        val content = testSmaliFile!!.readText()
+        val content = testSmaliFile.readText()
         
         // When: Parse with timing
         val startTime = System.currentTimeMillis()
@@ -190,7 +192,7 @@ class InstructionNavigationE2ETest {
     @Test
     fun `e2e - indexing real file completes in reasonable time`() {
         // Given: Parsed file
-        val content = testSmaliFile!!.readText()
+        val content = testSmaliFile.readText()
         val smaliFile = parser.parse(testUri, content)
         Assertions.assertNotNull(smaliFile)
         
@@ -210,7 +212,7 @@ class InstructionNavigationE2ETest {
     @Test
     fun `e2e - lookup by class name is fast`() {
         // Given: Indexed file
-        val content = testSmaliFile!!.readText()
+        val content = testSmaliFile.readText()
         val smaliFile = parser.parse(testUri, content)
         workspaceIndex.indexFile(smaliFile!!)
         
@@ -234,7 +236,7 @@ class InstructionNavigationE2ETest {
     fun `e2e - file with getClassLoader method name is parseable`() {
         // Given: This file has invoke-virtual getClassLoader which was splitting incorrectly
         // Bug: "getClassLoader" was being split into "get", "Class", "Loader"
-        val content = testSmaliFile!!.readText()
+        val content = testSmaliFile.readText()
         
         // When: Parse
         val smaliFile = parser.parse(testUri, content)
@@ -248,7 +250,7 @@ class InstructionNavigationE2ETest {
     @Test
     fun `e2e - file with check-cast to interface parses correctly`() {
         // Given: File has check-cast p1, Lorg/bouncycastle/jsse/BCSSLSocket; (line 71)
-        val content = testSmaliFile!!.readText()
+        val content = testSmaliFile.readText()
         
         // When: Parse
         val smaliFile = parser.parse(testUri, content)
