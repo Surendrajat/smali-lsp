@@ -36,8 +36,8 @@ import kotlinx.coroutines.runBlocking
  * - Provides goto definition, hover, find references, diagnostics
  *
  * Usage:
- *   java -jar smali-lsp.jar lsp  (LSP mode - IDE integration)
- *   java -jar smali-lsp.jar mcp  (MCP server - AI agent integration)
+ *   java -jar smali-lsp-<version>.jar lsp  (LSP mode - IDE integration)
+ *   java -jar smali-lsp-<version>.jar mcp  (MCP server - AI agent integration)
  */
 data class VersionInfo(val version: String, val commit: String, val buildTime: String)
 
@@ -115,7 +115,7 @@ private fun printUsage() {
     println("""
         smali-lsp v${info.version} — Language Server & MCP server for Smali
 
-        Usage: java -jar smali-lsp.jar <command> [options]
+        Usage: java -jar smali-lsp-<version>.jar <command> [options]
 
         Commands:
           lsp          Start LSP server over stdio (for IDE integration)

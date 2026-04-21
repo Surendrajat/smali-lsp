@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.5.0] - 2026-04-21
+
+### Changed
+
+- `getStats()` now returns O(1) class, method, field, and string counts without forcing lazy string-index materialization
+- `workspace/symbol` now keeps only the best top-N matches while scanning, avoiding full-result sorts on large workspaces
+- `workspace/symbol` no longer mixes string literals into symbol results; string searches stay on the dedicated string-search path
+- `searchStrings()` now exits as soon as `maxResults` is reached and avoids building intermediate collections
+
+### Fixed
+
+- Build metadata now tracks git HEAD correctly when running `./gradlew shadowJar` without `clean`
+- MCP `serverInfo.version` now uses the same generated version metadata as LSP and `--version`
+- Corrected live build-output docs/scripts to reference the actual versioned jar naming
+
+### Internal
+
+- Added regression coverage for MCP version metadata, string-count reindex/remove flows, workspace symbol string exclusion, and relevance ordering on large workspaces
+
 ## [1.4.1] - 2026-04-17
 
 ### Fixed
