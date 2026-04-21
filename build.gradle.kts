@@ -99,15 +99,18 @@ tasks.jacocoTestReport {
 // Generate version metadata resource from project version + git commit
 val versionPropertiesDir = layout.buildDirectory.dir("generated-resources/version")
 val versionPropertiesFile = versionPropertiesDir.map { it.file("version.properties") }
+val gitCommitProvider = providers.exec {
+    commandLine("git", "rev-parse", "--short", "HEAD")
+    isIgnoreExitValue = true
+}.standardOutput.asText.map { it.trim().ifEmpty { "unknown" } }
 
 tasks.register("generateVersionProperties") {
+    inputs.property("projectVersion", project.version.toString())
+    inputs.property("gitCommit", gitCommitProvider)
     outputs.file(versionPropertiesFile)
     doLast {
         val commitHash = try {
-            providers.exec {
-                commandLine("git", "rev-parse", "--short", "HEAD")
-                isIgnoreExitValue = true
-            }.standardOutput.asText.get().trim().ifEmpty { "unknown" }
+            gitCommitProvider.get()
         } catch (_: Exception) {
             "unknown"
         }

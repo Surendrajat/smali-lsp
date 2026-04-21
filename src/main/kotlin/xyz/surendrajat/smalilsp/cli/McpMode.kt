@@ -21,6 +21,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import org.eclipse.lsp4j.Position
 import org.slf4j.LoggerFactory
+import xyz.surendrajat.smalilsp.loadVersionInfo
 import xyz.surendrajat.smalilsp.index.WorkspaceIndex
 import xyz.surendrajat.smalilsp.indexer.WorkspaceScanner
 import xyz.surendrajat.smalilsp.parser.SmaliParser
@@ -56,6 +57,7 @@ class McpMode {
 
     private val logger = LoggerFactory.getLogger(McpMode::class.java)
     private val gson = com.google.gson.Gson()
+    private val versionInfo = loadVersionInfo()
 
     // In-memory index (persists across queries)
     private var index: WorkspaceIndex? = null
@@ -73,7 +75,7 @@ class McpMode {
 
     fun run() {
         val server = Server(
-            Implementation(name = "smali-lsp", version = "1.0.0"),
+            Implementation(name = "smali-lsp", version = versionInfo.version),
             ServerOptions(
                 capabilities = ServerCapabilities(tools = ServerCapabilities.Tools(listChanged = false))
             )

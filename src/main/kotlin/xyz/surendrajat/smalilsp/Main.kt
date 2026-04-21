@@ -41,7 +41,7 @@ import kotlinx.coroutines.runBlocking
  */
 data class VersionInfo(val version: String, val commit: String, val buildTime: String)
 
-private fun loadVersionInfo(): VersionInfo {
+internal fun loadVersionInfo(): VersionInfo {
     val props = java.util.Properties()
     val stream = SmaliLanguageServer::class.java.getResourceAsStream("/version.properties")
     if (stream != null) {

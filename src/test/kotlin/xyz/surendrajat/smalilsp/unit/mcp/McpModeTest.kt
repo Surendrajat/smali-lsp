@@ -8,6 +8,8 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import java.io.*
 import java.nio.file.Files
+import java.util.Properties
+import java.util.jar.JarFile
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
 
@@ -168,6 +170,7 @@ class McpModeTest {
     @Test
     fun `test MCP initialization handshake`() {
         val process = startMcpProcess()
+        val expectedVersion = latestBuiltJarVersion()
 
         try {
             val stdin = BufferedWriter(OutputStreamWriter(process.outputStream))
@@ -191,6 +194,8 @@ class McpModeTest {
 
             val serverInfo = result.getAsJsonObject("serverInfo")
             assertEquals("smali-lsp", serverInfo.get("name").asString)
+            assertEquals(expectedVersion, serverInfo.get("version").asString)
+            assertTrue(serverInfo.get("version").asString != "1.0.0")
 
             // Step 2: Send initialized notification (no response expected)
             sendNotification(stdin, "notifications/initialized")
@@ -835,6 +840,22 @@ class McpModeTest {
         return ProcessBuilder(
             "java", "-jar", jarFile!!.absolutePath, "mcp"
         ).start()
+    }
+
+    private fun latestBuiltJarVersion(): String {
+        val jarFile = File("build/libs").listFiles()
+            ?.filter { it.name.startsWith("smali-lsp") && it.name.endsWith(".jar") }
+            ?.maxByOrNull { it.lastModified() }
+        assumeTrue(jarFile != null, "LSP jar not found — run './gradlew shadowJar' first, skipping MCP tests")
+
+        JarFile(jarFile!!).use { jar ->
+            val entry = jar.getJarEntry("version.properties")
+            assertNotNull(entry, "Built jar must contain version.properties")
+
+            val props = Properties()
+            jar.getInputStream(entry).use { props.load(it) }
+            return props.getProperty("version", "unknown")
+        }
     }
 
     private fun drainStderr(process: Process) {
